@@ -11,6 +11,7 @@ export interface SaveData {
   lotWidth: number;
   lotHeight: number;
   walls: boolean[];
+  floors: number[];
   objects: { type: string; x: number; y: number }[];
   sims: {
     id: number;
@@ -25,9 +26,11 @@ export interface SaveData {
 
 export function serialize(lot: Lot, sims: Sim[], nextSimId: number): SaveData {
   const walls: boolean[] = [];
+  const floors: number[] = [];
   for (let y = 0; y < lot.height; y++) {
     for (let x = 0; x < lot.width; x++) {
       walls.push(lot.hasWall(x, y));
+      floors.push(lot.getFloor(x, y));
     }
   }
   return {
@@ -35,6 +38,7 @@ export function serialize(lot: Lot, sims: Sim[], nextSimId: number): SaveData {
     lotWidth: lot.width,
     lotHeight: lot.height,
     walls,
+    floors,
     objects: lot.objects.map((o) => ({ type: o.type, x: o.gridX, y: o.gridY })),
     sims: sims.map((s) => ({
       id: s.id,
@@ -72,7 +76,9 @@ export function deserializeLot(data: SaveData): Lot {
   const lot = new Lot(data.lotWidth, data.lotHeight);
   for (let y = 0; y < data.lotHeight; y++) {
     for (let x = 0; x < data.lotWidth; x++) {
-      lot.setWall(x, y, data.walls[y * data.lotWidth + x]);
+      const i = y * data.lotWidth + x;
+      lot.setWall(x, y, data.walls[i]);
+      if (data.floors?.[i] !== undefined) lot.setFloor(x, y, data.floors[i]);
     }
   }
   for (const o of data.objects) {

@@ -4,11 +4,13 @@ An open-source, browser-based recreation of **The Sims 1**'s core life-simulatio
 
 This is an early foundation, not a feature-complete clone. It's meant to be a clean base for the community to build on.
 
+**On the art:** The Sims 1 (2000) is still under copyright — it won't enter the public domain for decades — so this project doesn't use or copy EA's actual assets, character designs, or textures. The visual style (soft, rounded, warm-lit isometric look) is original and independently drawn (`render/ObjectArt.ts`), aiming for the *genre feel* of a life-sim rather than any specific game's protected artwork.
+
 ## Stack
 
 - TypeScript + [Vite](https://vitejs.dev/) for the dev server / build
 - [PixiJS](https://pixijs.com/) (WebGL) for 2D isometric rendering
-- No build-time asset pipeline yet — objects and Sims are drawn as simple colored blocks/tokens rather than sprite art, so there's no art dependency to get a session running
+- No build-time asset pipeline — there's no external art dependency to get a session running. Objects and Sims are all procedurally drawn vector shapes (`render/IsoDraw.ts`, `render/ObjectArt.ts`) rather than sprite sheets, but each object type gets its own distinguishing silhouette and detail (a fridge with a seam and handles, a bookshelf with colored book spines, a TV with a lit screen, and so on) instead of a plain colored block
 
 ## Getting started
 
@@ -38,7 +40,8 @@ src/
   engine/       Generic engine bits: isometric math, A* pathfinding, the sim-time clock
   game/         Game rules: Lot (grid + walls + objects), Sim (state machine + motives),
                 the object catalog, and the autonomy AI
-  render/       IsoRenderer — PixiJS-based isometric rendering, camera, and input picking
+  render/       IsoRenderer (camera, input picking, draw order), IsoDraw (shared box/face
+                geometry helpers), ObjectArt (per-object-type procedural decoration)
   ui/           HUD — DOM-based overlay for motives, speed, and build/buy controls
 ```
 
@@ -54,7 +57,7 @@ src/
 ### Current simplifications (good first-contribution targets)
 
 - **Walls occupy whole tiles** rather than living on tile edges like the original Sims wall system — simpler pathfinding/rendering, but no diagonal walls yet.
-- **No sprite art** — objects and Sims are flat-colored blocks/tokens. Real isometric sprite sheets would be a big visual upgrade.
+- **Still no sprite art** — object/Sim detail is procedural vector drawing (`ObjectArt.ts`), not sprite sheets: soft blurred contact shadows, a two-layer "glow" fake instead of real gradients (PixiJS's `FillGradient` allocates a GPU texture per instance, which isn't safe to recreate every frame the way this scene redraws), and rounded/capsule Sim bodies instead of flat boxes. It reads much less "voxel game" than flat blocks, but real hand-drawn isometric sprites would still be a big visual upgrade, especially for Sims.
 - **No creation flow, personality traits, or relationships tracking** — new Sims spawn with a name/color from a fixed pool, and Social just pushes both parties' `social` motive on interaction.
 - **A single flat save slot** — one `localStorage` key, no named saves or multiple households.
 - **No multi-lot / neighborhood view** — one lot, no traveling between lots.
