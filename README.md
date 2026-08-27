@@ -30,6 +30,7 @@ npm run typecheck
 - **+ Sim mode**: click an open floor tile to add a new Sim to the household; **Remove** in the Sim panel deletes the selected one
 - Speed controls (`II`, `1x`, `2x`, `3x`) control simulation speed, matching the classic pause/play/fast-forward keys
 - **Save** writes the lot and Sims to `localStorage`; **Reset** discards the save and reloads the starter lot
+- The **Career** section in the Sim panel assigns a job; the Sim automatically leaves for their shift and comes home with a paycheck
 
 The starter household is Bella and Mortimer Goth, The Sims 1's iconic premade neighbors. Sims added later draw from a pool of other classic-series first names.
 
@@ -58,6 +59,10 @@ src/
 
 Each Sim has a `Personality` (`game/Personality.ts`): five traits scored 0-10 — Neat, Outgoing, Active, Playful, Nice — loosely modeled on The Sims 1's own personality-point system (original gameplay numbers, not a copy). `TRAIT_FOR_MOTIVE` in `types.ts` maps a trait to the motive it modulates (Playful→fun, Outgoing→social, Neat→hygiene), so a highly playful Sim gets more out of watching TV than a serious one. Outgoing also shifts the AI's social urgency threshold in `AI.ts`, so outgoing Sims seek company well before it's dire and shy ones tolerate more isolation. Each Sim tracks a relationship score (-100..100) with every other Sim it's socialized with, built up over time scaled by the Nice trait, and shown in the HUD when that Sim is selected.
 
+### Money and jobs
+
+The household shares one `funds` balance (starting at §3,000), spent in Buy mode — each object in `ObjectCatalog.ts` has a `price`, and a placement is refused with a "Not enough funds" flash if the household can't afford it. `game/Job.ts` defines a small single-tier career list (title, daily pay, and a leave/return time), and `game/Jobs.ts` runs every tick: any Sim with a job whose shift has started gets interrupted (whatever they were doing) and marked `atWork` — hidden from the lot entirely, since there's no actual workplace or commute animation, just the classic Sims abstraction of "they're gone for the day" — then reappears at quitting time with the day's pay added to the household funds. Jobs only run Monday-Friday (`WORK_DAYS` in `Job.ts`); weekends are automatically off.
+
 ### Current simplifications (good first-contribution targets)
 
 - **Walls occupy whole tiles** rather than living on tile edges like the original Sims wall system — simpler pathfinding/rendering, but no diagonal walls yet.
@@ -66,6 +71,7 @@ Each Sim has a `Personality` (`game/Personality.ts`): five traits scored 0-10 �
 - **Relationships are a single scalar** — no relationship types (friend/romantic/enemy), no memory of specific events, just one number that goes up when Sims chat.
 - **A single flat save slot** — one `localStorage` key, no named saves or multiple households.
 - **No multi-lot / neighborhood view** — one lot, no traveling between lots.
+- **Jobs are single-tier** — no promotions, no performance requirements, and no chance of getting fired; motives keep decaying normally while a Sim is at work, but nothing currently checks them.
 
 ## Contributing
 

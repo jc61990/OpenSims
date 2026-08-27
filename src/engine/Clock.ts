@@ -12,6 +12,7 @@ const SPEED_MULTIPLIERS: Record<SimSpeed, number> = {
 
 const MINUTES_PER_DAY = 24 * 60;
 const START_MINUTE = 9 * 60; // simulation starts at 9:00 AM
+const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 export class SimClock {
   speed: SimSpeed = 1;
@@ -33,13 +34,25 @@ export class SimClock {
     return Math.floor(this.totalMinutes / MINUTES_PER_DAY);
   }
 
-  formatTime(): string {
-    const m = this.minuteOfDay;
-    let hour = Math.floor(m / 60);
-    const minute = Math.floor(m % 60);
-    const ampm = hour >= 12 ? "PM" : "AM";
-    hour = hour % 12;
-    if (hour === 0) hour = 12;
-    return `${hour}:${minute.toString().padStart(2, "0")} ${ampm}`;
+  /** 0 = Monday .. 6 = Sunday. Day 0 of the simulation starts on a Monday. */
+  get dayOfWeek(): number {
+    return this.day % 7;
   }
+
+  get dayName(): string {
+    return DAY_NAMES[this.dayOfWeek];
+  }
+
+  formatTime(): string {
+    return formatMinuteOfDay(this.minuteOfDay);
+  }
+}
+
+export function formatMinuteOfDay(m: number): string {
+  let hour = Math.floor(m / 60);
+  const minute = Math.floor(m % 60);
+  const ampm = hour >= 12 ? "PM" : "AM";
+  hour = hour % 12;
+  if (hour === 0) hour = 12;
+  return `${hour}:${minute.toString().padStart(2, "0")} ${ampm}`;
 }

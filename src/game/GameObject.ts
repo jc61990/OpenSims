@@ -16,6 +16,8 @@ export interface GameObjectDef {
   label: string;
   color: number;
   interactions: Interaction[];
+  /** Simoleons to place this object in Buy mode. */
+  price: number;
   /** Where (relative to the object tile) a sim must stand to use it. */
   standOffset?: { dx: number; dy: number };
   walkable?: boolean;
@@ -29,6 +31,7 @@ export class GameObject {
   readonly label: string;
   readonly color: number;
   readonly interactions: Interaction[];
+  readonly price: number;
   readonly standOffset: { dx: number; dy: number };
   readonly walkable: boolean;
   gridX: number;
@@ -41,6 +44,7 @@ export class GameObject {
     this.label = def.label;
     this.color = def.color;
     this.interactions = def.interactions;
+    this.price = def.price;
     this.standOffset = def.standOffset ?? { dx: 0, dy: 1 };
     this.walkable = def.walkable ?? false;
     this.gridX = gridX;

@@ -1,7 +1,8 @@
 import { MOTIVE_LABELS, MOTIVE_TYPES, TRAIT_LABELS, TRAIT_TYPES, type MotiveType, type TraitType } from "../game/types.ts";
 import { OBJECT_CATALOG } from "../game/ObjectCatalog.ts";
+import { JOB_CATALOG } from "../game/Job.ts";
+import { formatMinuteOfDay, type SimSpeed } from "../engine/Clock.ts";
 import type { Sim } from "../game/Sim.ts";
-import type { SimSpeed } from "../engine/Clock.ts";
 
 export type Mode = "live" | "build" | "buy" | "addsim";
 
@@ -13,6 +14,7 @@ export interface HUDCallbacks {
   onRemoveSim: () => void;
   onSave: () => void;
   onResetSave: () => void;
+  onSetJob: (jobId: string | null) => void;
 }
 
 function motiveColor(value: number): string {
@@ -21,14 +23,22 @@ function motiveColor(value: number): string {
   return "#55c778";
 }
 
+export function formatMoney(amount: number): string {
+  return `§${Math.round(amount).toLocaleString()}`;
+}
+
 export class HUD {
   private root: HTMLElement;
   private simTabsEl!: HTMLElement;
   private motiveRowsEl!: HTMLElement;
   private traitRowsEl!: HTMLElement;
   private relationshipsEl!: HTMLElement;
+  private careerEl!: HTMLElement;
   private actionLabelEl!: HTMLElement;
   private clockEl!: HTMLElement;
+  private fundsEl!: HTMLElement;
+  private buyStatusEl!: HTMLElement;
+  private buyStatusTimer: ReturnType<typeof setTimeout> | null = null;
   private speedButtons = {} as Record<SimSpeed, HTMLButtonElement>;
   private modeButtons = {} as Record<Mode, HTMLButtonElement>;
   private static readonly ALL_SPEEDS: SimSpeed[] = [0, 1, 2, 3];
@@ -102,6 +112,15 @@ export class HUD {
     this.relationshipsEl.className = "relationships";
     simPanel.appendChild(this.relationshipsEl);
 
+    const careerHeading = document.createElement("div");
+    careerHeading.className = "section-heading";
+    careerHeading.textContent = "Career";
+    simPanel.appendChild(careerHeading);
+    this.careerEl = document.createElement("div");
+    this.careerEl.className = "palette-panel career-panel";
+    simPanel.appendChild(this.careerEl);
+    this.buildCareerButtons();
+
     this.actionLabelEl = document.createElement("div");
     this.actionLabelEl.className = "action-label";
     simPanel.appendChild(this.actionLabelEl);
@@ -111,6 +130,9 @@ export class HUD {
     this.clockEl = document.createElement("div");
     this.clockEl.className = "clock-readout";
     controlsPanel.appendChild(this.clockEl);
+    this.fundsEl = document.createElement("div");
+    this.fundsEl.className = "funds-readout";
+    controlsPanel.appendChild(this.fundsEl);
     const speedRow = document.createElement("div");
     speedRow.className = "speed-controls";
     const speedDefs: { speed: SimSpeed; label: string }[] = [
@@ -178,7 +200,7 @@ export class HUD {
       const def = OBJECT_CATALOG[key];
       const item = document.createElement("div");
       item.className = "palette-item";
-      item.textContent = def.label;
+      item.innerHTML = `${def.label}<br><span class="palette-price">${formatMoney(def.price)}</span>`;
       item.onclick = () => {
         this.activePalette = key;
         this.callbacks.onPaletteSelect(key);
@@ -186,12 +208,31 @@ export class HUD {
       };
       palettePanel.appendChild(item);
     }
+    this.buyStatusEl = document.createElement("div");
+    this.buyStatusEl.className = "hint buy-status";
+    palettePanel.appendChild(this.buyStatusEl);
     palettePanel.style.display = "none";
 
     hud.appendChild(simPanel);
     hud.appendChild(controlsPanel);
     hud.appendChild(palettePanel);
     this.root.appendChild(hud);
+  }
+
+  private buildCareerButtons(): void {
+    const makeButton = (jobId: string | null, html: string) => {
+      const item = document.createElement("div");
+      item.className = "palette-item career-item";
+      item.innerHTML = html;
+      item.dataset.job = jobId ?? "none";
+      item.onclick = () => this.callbacks.onSetJob(jobId);
+      this.careerEl.appendChild(item);
+    };
+    makeButton(null, "Unemployed");
+    for (const job of Object.values(JOB_CATALOG)) {
+      const schedule = `${formatMinuteOfDay(job.leaveMinute)}–${formatMinuteOfDay(job.returnMinute)}`;
+      makeButton(job.id, `${job.title}<br><span class="palette-price">${formatMoney(job.dailyPay)}/day · ${schedule}</span>`);
+    }
   }
 
   private refreshPalette(): void {
@@ -220,6 +261,18 @@ export class HUD {
     this.clockEl.textContent = text;
   }
 
+  setFunds(amount: number): void {
+    this.fundsEl.textContent = formatMoney(amount);
+  }
+
+  flashBuyStatus(text: string): void {
+    this.buyStatusEl.textContent = text;
+    if (this.buyStatusTimer) clearTimeout(this.buyStatusTimer);
+    this.buyStatusTimer = setTimeout(() => {
+      this.buyStatusEl.textContent = "";
+    }, 2000);
+  }
+
   private flashSaveStatus(text: string): void {
     this.saveStatusEl.textContent = text;
     if (this.saveStatusTimer) clearTimeout(this.saveStatusTimer);
@@ -243,6 +296,7 @@ export class HUD {
     if (!sim) {
       this.actionLabelEl.textContent = "";
       this.relationshipsEl.innerHTML = "";
+      for (const item of this.careerEl.querySelectorAll(".career-item")) item.classList.remove("active");
       return;
     }
     const snapshot = sim.motives.snapshot();
@@ -279,6 +333,11 @@ export class HUD {
         row.innerHTML = `<span class="motive-label">${other.name}</span><div class="motive-bar"><div class="motive-bar-fill" style="width:${pct}%;background:${motiveColor(value)}"></div></div>`;
         this.relationshipsEl.appendChild(row);
       }
+    }
+
+    const careerItems = this.careerEl.querySelectorAll<HTMLElement>(".career-item");
+    for (const item of careerItems) {
+      item.classList.toggle("active", item.dataset.job === (sim.jobId ?? "none"));
     }
 
     this.actionLabelEl.textContent = sim.currentAction;

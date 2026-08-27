@@ -53,7 +53,9 @@ body {
 }
 
 .sim-panel {
-  min-width: 240px;
+  width: 260px;
+  max-height: 78vh;
+  overflow-y: auto;
 }
 
 .sim-panel h3 {
@@ -216,6 +218,48 @@ body {
   background: #4ad67f;
   color: #10281a;
   border-color: #7fe6ab;
+}
+
+.palette-price {
+  opacity: 0.7;
+  font-size: 10px;
+}
+
+.palette-item.active .palette-price {
+  opacity: 0.85;
+}
+
+.career-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+}
+
+.career-item {
+  line-height: 1.5;
+  text-align: left;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.career-item.active {
+  background: #4a7bd6;
+  color: #fff;
+  border-color: #7fa3e6;
+}
+
+.buy-status {
+  min-height: 14px;
+  width: 100%;
+}
+
+.funds-readout {
+  font-size: 13px;
+  font-weight: 700;
+  color: #6fe08a;
+  font-variant-numeric: tabular-nums;
+  margin-top: 2px;
 }
 
 .top-bar {

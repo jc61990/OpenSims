@@ -142,7 +142,9 @@ export class IsoRenderer {
     const worldY = (py - this.world.y) / this.world.scale.y;
 
     // Sim hit-test first (small radius around each sim's screen position).
+    // Sims at work aren't on the lot, so they're not clickable either.
     for (const sim of this.getSims()) {
+      if (sim.state === "atWork") continue;
       const p = gridToScreen(sim.x + 0.5, sim.y + 0.5);
       const d = Math.hypot(p.x - worldX, p.y - worldY);
       if (d < 18) {
@@ -162,7 +164,9 @@ export class IsoRenderer {
     this.floorGfx.clear();
     this.drawFloors();
 
-    const sims = this.getSims();
+    // Sims at work are away from the lot for their shift, so they're hidden
+    // from every visual layer (shadow, scene, and name label) below.
+    const sims = this.getSims().filter((s) => s.state !== "atWork");
     this.shadowGfx.clear();
     this.drawShadows(sims);
 

@@ -5,9 +5,10 @@ import { Personality, randomPersonality } from "./game/Personality.ts";
 import { GameObject } from "./game/GameObject.ts";
 import { OBJECT_CATALOG } from "./game/ObjectCatalog.ts";
 import { updateAI } from "./game/AI.ts";
+import { updateJobs } from "./game/Jobs.ts";
 import { SimClock } from "./engine/Clock.ts";
 import { IsoRenderer } from "./render/IsoRenderer.ts";
-import { HUD, type Mode } from "./ui/HUD.ts";
+import { HUD, formatMoney, type Mode } from "./ui/HUD.ts";
 import {
   loadFromStorage,
   saveToStorage,
@@ -18,6 +19,7 @@ import {
 
 const LOT_WIDTH = 14;
 const LOT_HEIGHT = 14;
+const STARTING_FUNDS = 3000;
 
 const SIM_NAME_POOL = ["Bella", "Mortimer", "Cassandra", "Michael", "Dudley", "Kaylynn", "Bob", "Ivy"];
 const SIM_COLOR_POOL = [0x4a7bd6, 0xd64a7b, 0x4ad67f, 0xd6a54a, 0x9a6ac2, 0x4ad6d0];
@@ -105,6 +107,7 @@ async function main(): Promise<void> {
   const lot = saveData ? deserializeLot(saveData) : createStarterLot();
   const sims: Sim[] = saveData ? deserializeSims(saveData) : createStarterSims();
   let nextSimId = saveData ? saveData.nextSimId : sims.length + 1;
+  let funds = saveData ? (saveData.funds ?? STARTING_FUNDS) : STARTING_FUNDS;
 
   let selectedSimId: number | null = sims[0]?.id ?? null;
   let mode: Mode = "live";
@@ -151,15 +154,22 @@ async function main(): Promise<void> {
       const sim = sims.find((s) => s.id === selectedSimId);
       if (sim) removeSim(sim);
     },
-    onSave: () => saveToStorage(lot, sims, nextSimId),
+    onSave: () => saveToStorage(lot, sims, nextSimId, funds),
     onResetSave: () => {
       clearStorage();
       window.location.reload();
+    },
+    onSetJob: (jobId) => {
+      const sim = sims.find((s) => s.id === selectedSimId);
+      if (!sim) return;
+      sim.jobId = jobId;
+      hud.renderSim(sim, sims);
     },
   });
 
   hud.setMode(mode);
   hud.setSpeed(clock.speed);
+  hud.setFunds(funds);
   hud.renderSimTabs(sims, selectedSimId);
 
   await renderer.init(canvasHolder, lot, () => sims, {
@@ -172,7 +182,16 @@ async function main(): Promise<void> {
         if (!activePaletteType) return;
         const def = OBJECT_CATALOG[activePaletteType];
         if (!def) return;
-        lot.addObject(new GameObject(def, gx, gy));
+        if (funds < def.price) {
+          hud.flashBuyStatus("Not enough funds");
+          return;
+        }
+        const placed = lot.addObject(new GameObject(def, gx, gy));
+        if (placed) {
+          funds -= def.price;
+          hud.setFunds(funds);
+          hud.flashBuyStatus(`-${formatMoney(def.price)}`);
+        }
       } else if (mode === "addsim") {
         if (!lot.isWalkable(gx, gy)) return;
         const id = nextSimId++;
@@ -200,8 +219,12 @@ async function main(): Promise<void> {
     if (simMinutes > 0) {
       for (const sim of sims) sim.update(simMinutes, lot);
       updateAI(sims, lot);
+      updateJobs(sims, clock, (amount) => {
+        funds += amount;
+        hud.setFunds(funds);
+      });
     }
-    hud.setClock(`Day ${clock.day + 1} · ${clock.formatTime()}`);
+    hud.setClock(`${clock.dayName} · ${clock.formatTime()}`);
     const selected = sims.find((s) => s.id === selectedSimId) ?? null;
     hud.renderSim(selected, sims);
   });

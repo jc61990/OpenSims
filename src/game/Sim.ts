@@ -5,7 +5,7 @@ import { TRAIT_FOR_MOTIVE } from "./types.ts";
 import type { Lot } from "./Lot.ts";
 import type { GameObject, Interaction } from "./GameObject.ts";
 
-export type SimState = "idle" | "walking" | "using" | "socializing";
+export type SimState = "idle" | "walking" | "using" | "socializing" | "atWork";
 
 const WALK_SPEED_TILES_PER_MINUTE = 6;
 const SOCIAL_GAIN_PER_MINUTE = 6;
@@ -27,6 +27,7 @@ export class Sim {
   private relationships = new Map<number, number>();
   state: SimState = "idle";
   currentAction = "Idle";
+  jobId: string | null = null;
 
   path: GridPoint[] = [];
   private onArrive: (() => void) | null = null;
@@ -142,6 +143,7 @@ export class Sim {
         this.stepSocializing(simMinutes);
         break;
       case "idle":
+      case "atWork":
         break;
     }
   }

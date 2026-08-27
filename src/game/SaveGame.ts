@@ -23,11 +23,13 @@ export interface SaveData {
     motives: Partial<Record<MotiveType, number>>;
     personality?: Partial<Record<TraitType, number>>;
     relationships?: [number, number][];
+    jobId?: string | null;
   }[];
   nextSimId: number;
+  funds?: number;
 }
 
-export function serialize(lot: Lot, sims: Sim[], nextSimId: number): SaveData {
+export function serialize(lot: Lot, sims: Sim[], nextSimId: number, funds: number): SaveData {
   const walls: boolean[] = [];
   const floors: number[] = [];
   for (let y = 0; y < lot.height; y++) {
@@ -52,13 +54,15 @@ export function serialize(lot: Lot, sims: Sim[], nextSimId: number): SaveData {
       motives: s.motives.snapshot(),
       personality: s.personality.snapshot(),
       relationships: s.relationshipEntries(),
+      jobId: s.jobId,
     })),
     nextSimId,
+    funds,
   };
 }
 
-export function saveToStorage(lot: Lot, sims: Sim[], nextSimId: number): void {
-  localStorage.setItem(SAVE_KEY, JSON.stringify(serialize(lot, sims, nextSimId)));
+export function saveToStorage(lot: Lot, sims: Sim[], nextSimId: number, funds: number): void {
+  localStorage.setItem(SAVE_KEY, JSON.stringify(serialize(lot, sims, nextSimId, funds)));
 }
 
 export function loadFromStorage(): SaveData | null {
@@ -109,6 +113,7 @@ export function deserializeSims(data: SaveData): Sim[] {
     for (const [otherId, value] of s.relationships ?? []) {
       sim.adjustRelationship(otherId, value);
     }
+    sim.jobId = s.jobId ?? null;
     return sim;
   });
 }
