@@ -3,13 +3,16 @@ import { OBJECT_CATALOG } from "../game/ObjectCatalog.ts";
 import type { Sim } from "../game/Sim.ts";
 import type { SimSpeed } from "../engine/Clock.ts";
 
-export type Mode = "live" | "build" | "buy";
+export type Mode = "live" | "build" | "buy" | "addsim";
 
 export interface HUDCallbacks {
   onSpeedChange: (speed: SimSpeed) => void;
   onModeChange: (mode: Mode) => void;
   onPaletteSelect: (objectType: string) => void;
   onSelectSim: (simId: number) => void;
+  onRemoveSim: () => void;
+  onSave: () => void;
+  onResetSave: () => void;
 }
 
 function motiveColor(value: number): string {
@@ -27,10 +30,12 @@ export class HUD {
   private speedButtons = {} as Record<SimSpeed, HTMLButtonElement>;
   private modeButtons = {} as Record<Mode, HTMLButtonElement>;
   private static readonly ALL_SPEEDS: SimSpeed[] = [0, 1, 2, 3];
-  private static readonly ALL_MODES: Mode[] = ["live", "buy", "build"];
+  private static readonly ALL_MODES: Mode[] = ["live", "buy", "build", "addsim"];
   private paletteEl!: HTMLElement;
   private callbacks: HUDCallbacks;
   private activePalette: string | null = null;
+  private saveStatusEl!: HTMLElement;
+  private saveStatusTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(root: HTMLElement, callbacks: HUDCallbacks) {
     this.root = root;
@@ -54,7 +59,16 @@ export class HUD {
 
     const simPanel = document.createElement("div");
     simPanel.className = "panel sim-panel";
-    simPanel.innerHTML = `<h3>Sim</h3>`;
+    const simHeader = document.createElement("h3");
+    const simTitle = document.createElement("span");
+    simTitle.textContent = "Sim";
+    const removeBtn = document.createElement("button");
+    removeBtn.className = "mode-btn";
+    removeBtn.textContent = "Remove";
+    removeBtn.onclick = () => this.callbacks.onRemoveSim();
+    simHeader.appendChild(simTitle);
+    simHeader.appendChild(removeBtn);
+    simPanel.appendChild(simHeader);
     this.simTabsEl = document.createElement("div");
     this.simTabsEl.className = "sim-tabs";
     simPanel.appendChild(this.simTabsEl);
@@ -99,6 +113,7 @@ export class HUD {
       { mode: "live", label: "Live" },
       { mode: "buy", label: "Buy" },
       { mode: "build", label: "Walls" },
+      { mode: "addsim", label: "+ Sim" },
     ];
     for (const { mode, label } of modeDefs) {
       const btn = document.createElement("button");
@@ -109,6 +124,31 @@ export class HUD {
       this.modeButtons[mode] = btn;
     }
     controlsPanel.appendChild(modeRow);
+
+    const saveRow = document.createElement("div");
+    saveRow.className = "mode-controls";
+    const saveBtn = document.createElement("button");
+    saveBtn.className = "mode-btn";
+    saveBtn.textContent = "Save";
+    saveBtn.onclick = () => {
+      this.callbacks.onSave();
+      this.flashSaveStatus("Saved");
+    };
+    const resetBtn = document.createElement("button");
+    resetBtn.className = "mode-btn";
+    resetBtn.textContent = "Reset";
+    resetBtn.onclick = () => {
+      if (window.confirm("Discard the saved game and start over?")) {
+        this.callbacks.onResetSave();
+        this.flashSaveStatus("Reset");
+      }
+    };
+    saveRow.appendChild(saveBtn);
+    saveRow.appendChild(resetBtn);
+    controlsPanel.appendChild(saveRow);
+    this.saveStatusEl = document.createElement("div");
+    this.saveStatusEl.className = "hint";
+    controlsPanel.appendChild(this.saveStatusEl);
 
     const palettePanel = document.createElement("div");
     palettePanel.className = "panel palette-panel";
@@ -157,6 +197,14 @@ export class HUD {
 
   setClock(text: string): void {
     this.clockEl.textContent = text;
+  }
+
+  private flashSaveStatus(text: string): void {
+    this.saveStatusEl.textContent = text;
+    if (this.saveStatusTimer) clearTimeout(this.saveStatusTimer);
+    this.saveStatusTimer = setTimeout(() => {
+      this.saveStatusEl.textContent = "";
+    }, 2000);
   }
 
   renderSimTabs(sims: Sim[], selectedId: number | null): void {

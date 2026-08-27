@@ -64,6 +64,11 @@ body {
   align-items: center;
 }
 
+.sim-panel h3 .mode-btn {
+  font-size: 10px;
+  padding: 3px 7px;
+}
+
 .sim-tabs {
   display: flex;
   gap: 4px;
