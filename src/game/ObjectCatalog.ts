@@ -64,6 +64,54 @@ export const OBJECT_CATALOG: Record<string, GameObjectDef> = {
       { id: "read", label: "Read", motive: "fun", gainPerMinute: 3, durationMinutes: 45 },
     ],
   },
+  sofa: {
+    type: "sofa",
+    label: "Sofa",
+    color: 0xb0563f,
+    standOffset: { dx: 0, dy: 1 },
+    interactions: [
+      { id: "relax", label: "Relax", motive: "fun", gainPerMinute: 6, durationMinutes: 30 },
+    ],
+  },
+  sink: {
+    type: "sink",
+    label: "Sink",
+    color: 0xd8dde0,
+    standOffset: { dx: 0, dy: 1 },
+    interactions: [
+      { id: "washup", label: "Wash up", motive: "hygiene", gainPerMinute: 6, durationMinutes: 5 },
+    ],
+  },
+  dresser: {
+    type: "dresser",
+    label: "Dresser",
+    color: 0x6b4a35,
+    standOffset: { dx: 0, dy: 1 },
+    interactions: [
+      { id: "change", label: "Change clothes", motive: "hygiene", gainPerMinute: 4, durationMinutes: 8 },
+    ],
+  },
+  counter: {
+    type: "counter",
+    label: "Counter",
+    color: 0xcbb994,
+    standOffset: { dx: 0, dy: 1 },
+    interactions: [],
+  },
+  plant: {
+    type: "plant",
+    label: "Plant",
+    color: 0x4a8a4a,
+    standOffset: { dx: 0, dy: 1 },
+    interactions: [],
+  },
+  painting: {
+    type: "painting",
+    label: "Painting",
+    color: 0x9a6ac2,
+    standOffset: { dx: 0, dy: 1 },
+    interactions: [],
+  },
 };
 
 export type ObjectTypeId = keyof typeof OBJECT_CATALOG;

@@ -25,7 +25,11 @@ npm run typecheck
 - **Live mode**: click a Sim to select them and watch their motives in the bottom-left panel
 - **Buy mode**: pick an object from the palette, then click a floor tile to place it
 - **Walls mode**: click a tile to toggle a wall on/off
+- **+ Sim mode**: click an open floor tile to add a new Sim to the household; **Remove** in the Sim panel deletes the selected one
 - Speed controls (`II`, `1x`, `2x`, `3x`) control simulation speed, matching the classic pause/play/fast-forward keys
+- **Save** writes the lot and Sims to `localStorage`; **Reset** discards the save and reloads the starter lot
+
+The starter household is Bella and Mortimer Goth, The Sims 1's iconic premade neighbors. Sims added later draw from a pool of other classic-series first names.
 
 ## Architecture
 
@@ -38,6 +42,8 @@ src/
   ui/           HUD — DOM-based overlay for motives, speed, and build/buy controls
 ```
 
+`game/SaveGame.ts` (de)serializes the lot (dimensions, walls, objects) and Sims (position, motives) to a single `localStorage` key.
+
 ### Core simulation loop
 
 1. `SimClock` converts real elapsed time into sim-minutes at the current speed (paused/1x/2x/3x).
@@ -47,12 +53,11 @@ src/
 
 ### Current simplifications (good first-contribution targets)
 
-- **Walls occupy whole tiles** rather than living on tile edges like the original Sims wall system — simpler pathfinding/rendering, but no room detection or diagonal walls yet.
+- **Walls occupy whole tiles** rather than living on tile edges like the original Sims wall system — simpler pathfinding/rendering, but no diagonal walls yet.
 - **No sprite art** — objects and Sims are flat-colored blocks/tokens. Real isometric sprite sheets would be a big visual upgrade.
-- **Two hardcoded Sims** with no creation flow, personality traits, or relationships tracking (Social just pushes both Sims' `social` motive on interaction).
-- **A small object catalog** (`src/game/ObjectCatalog.ts`) with one interaction each — more objects/interactions are easy to add there.
-- **No save/load** of lot or Sim state.
-- **No multi-lot / neighborhood view.**
+- **No creation flow, personality traits, or relationships tracking** — new Sims spawn with a name/color from a fixed pool, and Social just pushes both parties' `social` motive on interaction.
+- **A single flat save slot** — one `localStorage` key, no named saves or multiple households.
+- **No multi-lot / neighborhood view** — one lot, no traveling between lots.
 
 ## Contributing
 
