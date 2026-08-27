@@ -1,0 +1,94 @@
+import type { Sim } from "./Sim.ts";
+import type { Lot } from "./Lot.ts";
+import type { GameObject } from "./GameObject.ts";
+import type { MotiveType } from "./types.ts";
+
+const URGENCY_THRESHOLD = -10;
+
+/** Runs one autonomy pass: idle sims with an urgent motive go decide what to do. */
+export function updateAI(sims: Sim[], lot: Lot): void {
+  for (const sim of sims) {
+    if (sim.state !== "idle") continue;
+    const urgent = sim.motives.mostUrgent(URGENCY_THRESHOLD);
+    if (!urgent) continue;
+
+    if (urgent === "social") {
+      tryStartSocial(sim, sims, lot);
+    } else {
+      tryUseObject(sim, urgent, lot);
+    }
+  }
+}
+
+function distance(ax: number, ay: number, bx: number, by: number): number {
+  return Math.hypot(ax - bx, ay - by);
+}
+
+function tryUseObject(sim: Sim, motive: MotiveType, lot: Lot): void {
+  let best: GameObject | null = null;
+  let bestDist = Infinity;
+
+  for (const obj of lot.objects) {
+    if (!obj.isFree()) continue;
+    if (!obj.interactions.some((i) => i.motive === motive)) continue;
+    const spot = obj.standSpot;
+    if (!lot.isWalkable(spot.x, spot.y)) continue;
+    const d = distance(sim.x, sim.y, spot.x, spot.y);
+    if (d < bestDist) {
+      bestDist = d;
+      best = obj;
+    }
+  }
+
+  if (!best) return;
+  const obj = best;
+  const spot = obj.standSpot;
+  sim.walkTo(lot, spot.x, spot.y, () => {
+    if (!obj.isFree()) return; // someone beat us to it; try again next tick
+    const interaction = obj.interactions.find((i) => i.motive === motive);
+    if (interaction) sim.startUsing(obj, interaction);
+  });
+}
+
+function findAdjacentWalkable(lot: Lot, cx: number, cy: number, fromX: number, fromY: number) {
+  let best: { x: number; y: number } | null = null;
+  let bestDist = Infinity;
+  for (let dx = -1; dx <= 1; dx++) {
+    for (let dy = -1; dy <= 1; dy++) {
+      if (dx === 0 && dy === 0) continue;
+      const x = cx + dx;
+      const y = cy + dy;
+      if (!lot.isWalkable(x, y)) continue;
+      const d = distance(fromX, fromY, x, y);
+      if (d < bestDist) {
+        bestDist = d;
+        best = { x, y };
+      }
+    }
+  }
+  return best;
+}
+
+function tryStartSocial(sim: Sim, sims: Sim[], lot: Lot): void {
+  let partner: Sim | null = null;
+  let bestDist = Infinity;
+  for (const other of sims) {
+    if (other === sim || other.state !== "idle") continue;
+    const d = distance(sim.x, sim.y, other.x, other.y);
+    if (d < bestDist) {
+      bestDist = d;
+      partner = other;
+    }
+  }
+  if (!partner) return;
+
+  const target = partner;
+  const spot = findAdjacentWalkable(lot, target.gridX, target.gridY, sim.x, sim.y);
+  if (!spot) return;
+
+  sim.walkTo(lot, spot.x, spot.y, () => {
+    if (target.state !== "idle") return;
+    sim.startSocializing(target);
+    target.startSocializing(sim);
+  });
+}
