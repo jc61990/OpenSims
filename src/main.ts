@@ -44,6 +44,11 @@ function createStarterLot(): Lot {
   for (let x = 8; x <= 13; x++) lot.setWall(x, 7, true);
   lot.setWall(10, 7, false);
 
+  lot.setFloorRect(1, 1, 6, 6, 0x7a8f74); // kitchen: sage tile
+  lot.setFloorRect(8, 1, 13, 6, 0x8a6a4a); // living room: warm wood
+  lot.setFloorRect(1, 8, 6, 13, 0x6a5a7a); // bedroom: plum carpet
+  lot.setFloorRect(8, 8, 13, 13, 0x5a8a8a); // bathroom: aqua tile
+
   const place = (type: string, x: number, y: number) => {
     lot.addObject(new GameObject(OBJECT_CATALOG[type], x, y));
   };

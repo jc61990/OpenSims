@@ -1,22 +1,15 @@
 import { Application, Container, Graphics, Text, TextStyle } from "pixi.js";
-import { gridToScreen, screenToGrid, type ScreenPoint } from "../engine/IsoMath.ts";
+import { gridToScreen, screenToGrid } from "../engine/IsoMath.ts";
+import { tileCorners, drawBlock, shade } from "./IsoDraw.ts";
+import { drawObject } from "./ObjectArt.ts";
 import type { Lot } from "../game/Lot.ts";
 import type { Sim } from "../game/Sim.ts";
 
 const WALL_HEIGHT = 48;
-const OBJECT_HEIGHT = 22;
-const FLOOR_COLOR = 0x3c4a5c;
-const FLOOR_LINE = 0x2a3644;
+const FLOOR_LINE = 0x0e1420;
 const WALL_TOP = 0xdedad0;
 const WALL_LEFT = 0xb4b0a6;
 const WALL_RIGHT = 0x94908a;
-
-function shade(color: number, factor: number): number {
-  const r = Math.min(255, Math.max(0, ((color >> 16) & 0xff) * factor));
-  const g = Math.min(255, Math.max(0, ((color >> 8) & 0xff) * factor));
-  const b = Math.min(255, Math.max(0, (color & 0xff) * factor));
-  return (r << 16) | (g << 8) | b;
-}
 
 interface Drawable {
   depth: number;
@@ -149,6 +142,7 @@ export class IsoRenderer {
   }
 
   private render(): void {
+    const now = performance.now();
     this.scene.clear();
     this.drawFloors();
 
@@ -159,7 +153,7 @@ export class IsoRenderer {
         if (this.lot.hasWall(x, y)) {
           items.push({
             depth: x + y,
-            draw: (g) => this.drawBlock(g, x, y, WALL_HEIGHT, WALL_TOP, WALL_LEFT, WALL_RIGHT),
+            draw: (g) => drawBlock(g, x, y, WALL_HEIGHT, WALL_TOP, WALL_LEFT, WALL_RIGHT),
           });
         }
       }
@@ -168,16 +162,7 @@ export class IsoRenderer {
     for (const obj of this.lot.objects) {
       items.push({
         depth: obj.gridX + obj.gridY + 0.01,
-        draw: (g) =>
-          this.drawBlock(
-            g,
-            obj.gridX,
-            obj.gridY,
-            OBJECT_HEIGHT,
-            obj.color,
-            shade(obj.color, 0.75),
-            shade(obj.color, 0.55),
-          ),
+        draw: (g) => drawObject(g, obj),
       });
     }
 
@@ -185,7 +170,7 @@ export class IsoRenderer {
     for (const sim of sims) {
       items.push({
         depth: sim.x + sim.y + 0.02,
-        draw: (g) => this.drawSim(g, sim),
+        draw: (g) => this.drawSim(g, sim, now),
       });
     }
 
@@ -200,38 +185,21 @@ export class IsoRenderer {
       for (let x = 0; x < this.lot.width; x++) {
         if (this.lot.hasWall(x, y)) continue;
         const [n, e, s, w] = tileCorners(x, y);
+        const base = this.lot.getFloor(x, y);
+        const color = (x + y) % 2 === 0 ? base : shade(base, 0.92);
         this.scene
           .poly([n.x, n.y, e.x, e.y, s.x, s.y, w.x, w.y])
-          .fill(FLOOR_COLOR)
-          .stroke({ width: 1, color: FLOOR_LINE, alpha: 0.5 });
+          .fill(color)
+          .stroke({ width: 1, color: FLOOR_LINE, alpha: 0.35 });
       }
     }
   }
 
-  private drawBlock(
-    g: Graphics,
-    gx: number,
-    gy: number,
-    height: number,
-    topColor: number,
-    leftColor: number,
-    rightColor: number,
-  ): void {
-    const [n, e, s, w] = tileCorners(gx, gy);
-    const raise = (p: ScreenPoint) => ({ x: p.x, y: p.y - height });
-    const n2 = raise(n);
-    const e2 = raise(e);
-    const s2 = raise(s);
-    const w2 = raise(w);
-
-    g.poly([w.x, w.y, s.x, s.y, s2.x, s2.y, w2.x, w2.y]).fill(leftColor);
-    g.poly([s.x, s.y, e.x, e.y, e2.x, e2.y, s2.x, s2.y]).fill(rightColor);
-    g.poly([n2.x, n2.y, e2.x, e2.y, s2.x, s2.y, w2.x, w2.y]).fill(topColor);
-  }
-
-  private drawSim(g: Graphics, sim: Sim): void {
+  private drawSim(g: Graphics, sim: Sim, now: number): void {
     const center = gridToScreen(sim.x + 0.5, sim.y + 0.5);
     const baseY = center.y;
+    const walking = sim.state === "walking";
+    const bob = walking ? Math.sin(now / 90 + sim.id) * 2 : 0;
 
     if (sim.id === this.selectedSimId) {
       g.ellipse(center.x, baseY + 2, 14, 7).fill({ color: 0xffffff, alpha: 0.25 });
@@ -239,12 +207,37 @@ export class IsoRenderer {
       g.ellipse(center.x, baseY + 2, 11, 5).fill({ color: 0x000000, alpha: 0.3 });
     }
 
-    const bodyTop = baseY - 30;
-    g.roundRect(center.x - 8, bodyTop, 16, 26, 5).fill(sim.color);
-    g.circle(center.x, bodyTop - 8, 8).fill(0xe8c39e);
+    const bodyTop = baseY - 30 + bob;
+    const bodyBottom = baseY - 4;
+    const hairColor = shade(sim.color, 0.4);
+    const skinTone = 0xe8c39e;
+
+    // Legs
+    g.rect(center.x - 6, bodyBottom - 10, 5, 10).fill(shade(sim.color, 0.55));
+    g.rect(center.x + 1, bodyBottom - 10, 5, 10).fill(shade(sim.color, 0.45));
+
+    // Torso (two-tone shirt)
+    g.roundRect(center.x - 8, bodyTop, 16, 20, 4).fill(sim.color);
+    g.rect(center.x - 8, bodyTop + 12, 16, 8).fill(shade(sim.color, 0.72));
+
+    // Arms
+    const armSwing = walking ? Math.sin(now / 90 + sim.id + Math.PI) * 3 : 0;
+    g.roundRect(center.x - 11, bodyTop + 2 + armSwing, 3.5, 14, 2).fill(skinTone);
+    g.roundRect(center.x + 7.5, bodyTop + 2 - armSwing, 3.5, 14, 2).fill(skinTone);
+
+    // Head + hair
+    const headY = bodyTop - 8;
+    g.circle(center.x, headY, 8).fill(skinTone);
+    g.circle(center.x, headY - 4, 7).fill(hairColor);
+    g.rect(center.x - 7, headY - 4, 14, 5).fill(hairColor);
+
+    // Simple face
+    const faceDx = Math.sign(sim.facing.dx) * 2.5;
+    g.circle(center.x + faceDx - 2, headY, 1).fill(0x2a2018);
+    g.circle(center.x + faceDx + 2, headY, 1).fill(0x2a2018);
 
     if (sim.state === "using" || sim.state === "socializing") {
-      g.circle(center.x + 12, bodyTop - 14, 3).fill(0xffe066);
+      g.circle(center.x + 12, headY - 10, 3).fill(0xffe066);
     }
   }
 
@@ -278,13 +271,4 @@ export class IsoRenderer {
       }
     }
   }
-}
-
-function tileCorners(gx: number, gy: number): [ScreenPoint, ScreenPoint, ScreenPoint, ScreenPoint] {
-  return [
-    gridToScreen(gx, gy),
-    gridToScreen(gx + 1, gy),
-    gridToScreen(gx + 1, gy + 1),
-    gridToScreen(gx, gy + 1),
-  ];
 }

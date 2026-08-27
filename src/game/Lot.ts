@@ -1,7 +1,10 @@
 import type { GameObject } from "./GameObject.ts";
 
+export const DEFAULT_FLOOR_COLOR = 0x3c4a5c;
+
 export interface Tile {
   wall: boolean;
+  floor: number;
 }
 
 /**
@@ -17,7 +20,7 @@ export class Lot {
   constructor(width: number, height: number) {
     this.width = width;
     this.height = height;
-    this.tiles = new Array(width * height).fill(null).map(() => ({ wall: false }));
+    this.tiles = new Array(width * height).fill(null).map(() => ({ wall: false, floor: DEFAULT_FLOOR_COLOR }));
     this.buildPerimeterWalls();
   }
 
@@ -55,6 +58,21 @@ export class Lot {
   setWall(x: number, y: number, wall: boolean): void {
     if (!this.inBounds(x, y)) return;
     this.tiles[this.index(x, y)].wall = wall;
+  }
+
+  getFloor(x: number, y: number): number {
+    return this.getTile(x, y)?.floor ?? DEFAULT_FLOOR_COLOR;
+  }
+
+  setFloor(x: number, y: number, color: number): void {
+    if (!this.inBounds(x, y)) return;
+    this.tiles[this.index(x, y)].floor = color;
+  }
+
+  setFloorRect(x0: number, y0: number, x1: number, y1: number, color: number): void {
+    for (let y = y0; y <= y1; y++) {
+      for (let x = x0; x <= x1; x++) this.setFloor(x, y, color);
+    }
   }
 
   objectAt(x: number, y: number): GameObject | undefined {
