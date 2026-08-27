@@ -1,6 +1,7 @@
 import "./style.css";
 import { Lot } from "./game/Lot.ts";
 import { Sim } from "./game/Sim.ts";
+import { Personality, randomPersonality } from "./game/Personality.ts";
 import { GameObject } from "./game/GameObject.ts";
 import { OBJECT_CATALOG } from "./game/ObjectCatalog.ts";
 import { updateAI } from "./game/AI.ts";
@@ -81,11 +82,16 @@ function createStarterLot(): Lot {
 
 // Bella and Mortimer Goth are The Sims 1's iconic premade neighbors — a
 // recognizable starter household, distinct from the generic first-name pool
-// used for townsfolk added later via "+ Sim".
+// used for townsfolk added later via "+ Sim". Their personalities are just
+// original gameplay numbers loosely flavored to match their vibe (social
+// butterfly vs. tidy homebody) — not a reproduction of anything from the
+// actual games.
 function createStarterSims(): Sim[] {
+  const bella = new Personality({ neat: 5, outgoing: 8, active: 5, playful: 7, nice: 6 });
+  const mortimer = new Personality({ neat: 8, outgoing: 3, active: 4, playful: 4, nice: 6 });
   return [
-    new Sim(1, "Bella Goth", colorForId(1), 7, 6),
-    new Sim(2, "Mortimer Goth", colorForId(2), 7, 8),
+    new Sim(1, "Bella Goth", colorForId(1), 7, 6, bella),
+    new Sim(2, "Mortimer Goth", colorForId(2), 7, 8, mortimer),
   ];
 }
 
@@ -170,7 +176,7 @@ async function main(): Promise<void> {
       } else if (mode === "addsim") {
         if (!lot.isWalkable(gx, gy)) return;
         const id = nextSimId++;
-        const sim = new Sim(id, nameForId(id), colorForId(id), gx, gy);
+        const sim = new Sim(id, nameForId(id), colorForId(id), gx, gy, randomPersonality());
         sims.push(sim);
         selectedSimId = sim.id;
         renderer.selectedSimId = sim.id;
@@ -197,7 +203,7 @@ async function main(): Promise<void> {
     }
     hud.setClock(`Day ${clock.day + 1} · ${clock.formatTime()}`);
     const selected = sims.find((s) => s.id === selectedSimId) ?? null;
-    hud.renderSim(selected);
+    hud.renderSim(selected, sims);
   });
 }
 

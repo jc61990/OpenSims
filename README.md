@@ -54,11 +54,16 @@ src/
 3. `updateAI` runs an autonomy pass each tick: any idle Sim whose most urgent motive drops below a threshold will path to the nearest free object that satisfies it (or, for social, path to and start chatting with another idle Sim).
 4. `IsoRenderer` redraws the lot every frame — floor tiles, then walls/objects/Sims painter-sorted back-to-front by grid depth.
 
+### Personality and relationships
+
+Each Sim has a `Personality` (`game/Personality.ts`): five traits scored 0-10 — Neat, Outgoing, Active, Playful, Nice — loosely modeled on The Sims 1's own personality-point system (original gameplay numbers, not a copy). `TRAIT_FOR_MOTIVE` in `types.ts` maps a trait to the motive it modulates (Playful→fun, Outgoing→social, Neat→hygiene), so a highly playful Sim gets more out of watching TV than a serious one. Outgoing also shifts the AI's social urgency threshold in `AI.ts`, so outgoing Sims seek company well before it's dire and shy ones tolerate more isolation. Each Sim tracks a relationship score (-100..100) with every other Sim it's socialized with, built up over time scaled by the Nice trait, and shown in the HUD when that Sim is selected.
+
 ### Current simplifications (good first-contribution targets)
 
 - **Walls occupy whole tiles** rather than living on tile edges like the original Sims wall system — simpler pathfinding/rendering, but no diagonal walls yet.
 - **Still no sprite art** — object/Sim detail is procedural vector drawing (`ObjectArt.ts`), not sprite sheets: soft blurred contact shadows, a two-layer "glow" fake instead of real gradients (PixiJS's `FillGradient` allocates a GPU texture per instance, which isn't safe to recreate every frame the way this scene redraws), and rounded/capsule Sim bodies instead of flat boxes. It reads much less "voxel game" than flat blocks, but real hand-drawn isometric sprites would still be a big visual upgrade, especially for Sims.
-- **No creation flow, personality traits, or relationships tracking** — new Sims spawn with a name/color from a fixed pool, and Social just pushes both parties' `social` motive on interaction.
+- **No Sim creation flow** — new Sims spawn with a name/color from a fixed pool and a randomized personality; there's no UI to name them or hand-pick traits yet.
+- **Relationships are a single scalar** — no relationship types (friend/romantic/enemy), no memory of specific events, just one number that goes up when Sims chat.
 - **A single flat save slot** — one `localStorage` key, no named saves or multiple households.
 - **No multi-lot / neighborhood view** — one lot, no traveling between lots.
 

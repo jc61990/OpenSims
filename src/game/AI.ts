@@ -1,15 +1,40 @@
 import type { Sim } from "./Sim.ts";
 import type { Lot } from "./Lot.ts";
 import type { GameObject } from "./GameObject.ts";
-import type { MotiveType } from "./types.ts";
+import { MOTIVE_TYPES, type MotiveType } from "./types.ts";
 
 const URGENCY_THRESHOLD = -10;
+
+/**
+ * The motive threshold below which a Sim will autonomously act on it. Social
+ * is shifted by the Outgoing trait, so outgoing Sims seek company well before
+ * it's a "problem" while shy ones tolerate a lot more isolation.
+ */
+function urgencyThreshold(sim: Sim, motive: MotiveType): number {
+  if (motive === "social") {
+    return URGENCY_THRESHOLD + (sim.personality.get("outgoing") - 5) * 3;
+  }
+  return URGENCY_THRESHOLD;
+}
+
+function mostUrgentForSim(sim: Sim): MotiveType | null {
+  let worst: MotiveType | null = null;
+  let worstMargin = 0;
+  for (const motive of MOTIVE_TYPES) {
+    const margin = urgencyThreshold(sim, motive) - sim.motives.get(motive);
+    if (margin > worstMargin) {
+      worstMargin = margin;
+      worst = motive;
+    }
+  }
+  return worst;
+}
 
 /** Runs one autonomy pass: idle sims with an urgent motive go decide what to do. */
 export function updateAI(sims: Sim[], lot: Lot): void {
   for (const sim of sims) {
     if (sim.state !== "idle") continue;
-    const urgent = sim.motives.mostUrgent(URGENCY_THRESHOLD);
+    const urgent = mostUrgentForSim(sim);
     if (!urgent) continue;
 
     if (urgent === "social") {

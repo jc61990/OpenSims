@@ -1,5 +1,7 @@
 import { Motives } from "./Motives.ts";
+import { Personality } from "./Personality.ts";
 import { findPath, type GridPoint } from "../engine/Pathfinding.ts";
+import { TRAIT_FOR_MOTIVE } from "./types.ts";
 import type { Lot } from "./Lot.ts";
 import type { GameObject, Interaction } from "./GameObject.ts";
 
@@ -9,6 +11,9 @@ const WALK_SPEED_TILES_PER_MINUTE = 6;
 const SOCIAL_GAIN_PER_MINUTE = 6;
 const SOCIAL_FUN_GAIN_PER_MINUTE = 2;
 const SOCIAL_DURATION_MINUTES = 20;
+const RELATIONSHIP_GAIN_PER_MINUTE = 0.5;
+const MIN_RELATIONSHIP = -100;
+const MAX_RELATIONSHIP = 100;
 
 export class Sim {
   readonly id: number;
@@ -18,6 +23,8 @@ export class Sim {
   y: number;
   facing: { dx: number; dy: number } = { dx: 0, dy: 1 };
   motives: Motives;
+  personality: Personality;
+  private relationships = new Map<number, number>();
   state: SimState = "idle";
   currentAction = "Idle";
 
@@ -30,13 +37,27 @@ export class Sim {
   socialPartner: Sim | null = null;
   private socialElapsed = 0;
 
-  constructor(id: number, name: string, color: number, x: number, y: number) {
+  constructor(id: number, name: string, color: number, x: number, y: number, personality?: Personality) {
     this.id = id;
     this.name = name;
     this.color = color;
     this.x = x;
     this.y = y;
     this.motives = new Motives();
+    this.personality = personality ?? new Personality();
+  }
+
+  getRelationship(simId: number): number {
+    return this.relationships.get(simId) ?? 0;
+  }
+
+  adjustRelationship(simId: number, delta: number): void {
+    const value = this.getRelationship(simId) + delta;
+    this.relationships.set(simId, Math.max(MIN_RELATIONSHIP, Math.min(MAX_RELATIONSHIP, value)));
+  }
+
+  relationshipEntries(): [number, number][] {
+    return [...this.relationships.entries()];
   }
 
   get gridX(): number {
@@ -168,7 +189,9 @@ export class Sim {
       return;
     }
     ci.elapsed += simMinutes;
-    this.motives.add(ci.interaction.motive, ci.interaction.gainPerMinute * simMinutes);
+    const trait = TRAIT_FOR_MOTIVE[ci.interaction.motive];
+    const traitMult = trait ? this.personality.multiplier(trait) : 1;
+    this.motives.add(ci.interaction.motive, ci.interaction.gainPerMinute * traitMult * simMinutes);
     if (ci.elapsed >= ci.interaction.durationMinutes || this.motives.get(ci.interaction.motive) >= 95) {
       this.stopUsing();
     }
@@ -176,8 +199,12 @@ export class Sim {
 
   private stepSocializing(simMinutes: number): void {
     this.socialElapsed += simMinutes;
-    this.motives.add("social", SOCIAL_GAIN_PER_MINUTE * simMinutes);
-    this.motives.add("fun", SOCIAL_FUN_GAIN_PER_MINUTE * simMinutes);
+    this.motives.add("social", SOCIAL_GAIN_PER_MINUTE * this.personality.multiplier("outgoing") * simMinutes);
+    this.motives.add("fun", SOCIAL_FUN_GAIN_PER_MINUTE * this.personality.multiplier("playful") * simMinutes);
+    if (this.socialPartner) {
+      const gain = RELATIONSHIP_GAIN_PER_MINUTE * this.personality.multiplier("nice") * simMinutes;
+      this.adjustRelationship(this.socialPartner.id, gain);
+    }
     if (this.socialElapsed >= SOCIAL_DURATION_MINUTES || this.motives.get("social") >= 95) {
       this.stopSocializing();
     }

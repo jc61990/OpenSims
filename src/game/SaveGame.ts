@@ -1,8 +1,9 @@
 import { Lot } from "./Lot.ts";
 import { Sim } from "./Sim.ts";
+import { Personality } from "./Personality.ts";
 import { GameObject } from "./GameObject.ts";
 import { OBJECT_CATALOG } from "./ObjectCatalog.ts";
-import { MOTIVE_TYPES, type MotiveType } from "./types.ts";
+import { MOTIVE_TYPES, TRAIT_TYPES, type MotiveType, type TraitType } from "./types.ts";
 
 const SAVE_KEY = "opensims:save:v1";
 
@@ -20,6 +21,8 @@ export interface SaveData {
     x: number;
     y: number;
     motives: Partial<Record<MotiveType, number>>;
+    personality?: Partial<Record<TraitType, number>>;
+    relationships?: [number, number][];
   }[];
   nextSimId: number;
 }
@@ -47,6 +50,8 @@ export function serialize(lot: Lot, sims: Sim[], nextSimId: number): SaveData {
       x: s.x,
       y: s.y,
       motives: s.motives.snapshot(),
+      personality: s.personality.snapshot(),
+      relationships: s.relationshipEntries(),
     })),
     nextSimId,
   };
@@ -91,10 +96,18 @@ export function deserializeLot(data: SaveData): Lot {
 
 export function deserializeSims(data: SaveData): Sim[] {
   return data.sims.map((s) => {
-    const sim = new Sim(s.id, s.name, s.color, s.x, s.y);
+    const personality = new Personality();
+    for (const t of TRAIT_TYPES) {
+      const value = s.personality?.[t];
+      if (value !== undefined) personality.set(t, value);
+    }
+    const sim = new Sim(s.id, s.name, s.color, s.x, s.y, personality);
     for (const m of MOTIVE_TYPES) {
       const value = s.motives[m];
       if (value !== undefined) sim.motives.set(m, value);
+    }
+    for (const [otherId, value] of s.relationships ?? []) {
+      sim.adjustRelationship(otherId, value);
     }
     return sim;
   });

@@ -1,4 +1,4 @@
-import { MOTIVE_LABELS, MOTIVE_TYPES, type MotiveType } from "../game/types.ts";
+import { MOTIVE_LABELS, MOTIVE_TYPES, TRAIT_LABELS, TRAIT_TYPES, type MotiveType, type TraitType } from "../game/types.ts";
 import { OBJECT_CATALOG } from "../game/ObjectCatalog.ts";
 import type { Sim } from "../game/Sim.ts";
 import type { SimSpeed } from "../engine/Clock.ts";
@@ -25,6 +25,8 @@ export class HUD {
   private root: HTMLElement;
   private simTabsEl!: HTMLElement;
   private motiveRowsEl!: HTMLElement;
+  private traitRowsEl!: HTMLElement;
+  private relationshipsEl!: HTMLElement;
   private actionLabelEl!: HTMLElement;
   private clockEl!: HTMLElement;
   private speedButtons = {} as Record<SimSpeed, HTMLButtonElement>;
@@ -74,9 +76,6 @@ export class HUD {
     simPanel.appendChild(this.simTabsEl);
     this.motiveRowsEl = document.createElement("div");
     simPanel.appendChild(this.motiveRowsEl);
-    this.actionLabelEl = document.createElement("div");
-    this.actionLabelEl.className = "action-label";
-    simPanel.appendChild(this.actionLabelEl);
     for (const m of MOTIVE_TYPES) {
       const row = document.createElement("div");
       row.className = "motive-row";
@@ -84,6 +83,28 @@ export class HUD {
       row.innerHTML = `<span class="motive-label">${MOTIVE_LABELS[m]}</span><div class="motive-bar"><div class="motive-bar-fill"></div></div>`;
       this.motiveRowsEl.appendChild(row);
     }
+
+    const traitsHeading = document.createElement("div");
+    traitsHeading.className = "section-heading";
+    traitsHeading.textContent = "Personality";
+    simPanel.appendChild(traitsHeading);
+    this.traitRowsEl = document.createElement("div");
+    simPanel.appendChild(this.traitRowsEl);
+    for (const t of TRAIT_TYPES) {
+      const row = document.createElement("div");
+      row.className = "motive-row";
+      row.dataset.trait = t;
+      row.innerHTML = `<span class="motive-label">${TRAIT_LABELS[t]}</span><div class="motive-bar"><div class="motive-bar-fill trait-fill"></div></div>`;
+      this.traitRowsEl.appendChild(row);
+    }
+
+    this.relationshipsEl = document.createElement("div");
+    this.relationshipsEl.className = "relationships";
+    simPanel.appendChild(this.relationshipsEl);
+
+    this.actionLabelEl = document.createElement("div");
+    this.actionLabelEl.className = "action-label";
+    simPanel.appendChild(this.actionLabelEl);
 
     const controlsPanel = document.createElement("div");
     controlsPanel.className = "panel controls-panel";
@@ -218,9 +239,10 @@ export class HUD {
     }
   }
 
-  renderSim(sim: Sim | null): void {
+  renderSim(sim: Sim | null, allSims: Sim[] = []): void {
     if (!sim) {
       this.actionLabelEl.textContent = "";
+      this.relationshipsEl.innerHTML = "";
       return;
     }
     const snapshot = sim.motives.snapshot();
@@ -233,6 +255,32 @@ export class HUD {
       fill.style.width = `${pct}%`;
       fill.style.background = motiveColor(value);
     }
+
+    const traits = sim.personality.snapshot();
+    for (const t of TRAIT_TYPES) {
+      const row = this.traitRowsEl.querySelector<HTMLElement>(`[data-trait="${t}"]`);
+      if (!row) continue;
+      const fill = row.querySelector<HTMLElement>(".motive-bar-fill")!;
+      fill.style.width = `${(traits[t as TraitType] / 10) * 100}%`;
+    }
+
+    this.relationshipsEl.innerHTML = "";
+    const others = allSims.filter((s) => s.id !== sim.id);
+    if (others.length > 0) {
+      const heading = document.createElement("div");
+      heading.className = "section-heading";
+      heading.textContent = "Relationships";
+      this.relationshipsEl.appendChild(heading);
+      for (const other of others) {
+        const value = sim.getRelationship(other.id);
+        const row = document.createElement("div");
+        row.className = "motive-row";
+        const pct = ((value + 100) / 200) * 100;
+        row.innerHTML = `<span class="motive-label">${other.name}</span><div class="motive-bar"><div class="motive-bar-fill" style="width:${pct}%;background:${motiveColor(value)}"></div></div>`;
+        this.relationshipsEl.appendChild(row);
+      }
+    }
+
     this.actionLabelEl.textContent = sim.currentAction;
   }
 }

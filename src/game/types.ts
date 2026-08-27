@@ -32,3 +32,25 @@ export interface GridPos {
   x: number;
   y: number;
 }
+
+// A simplified version of The Sims 1's five-axis personality system. Purely
+// original gameplay numbers — see README for why nothing here touches EA's
+// actual assets or expression.
+export type TraitType = "neat" | "outgoing" | "active" | "playful" | "nice";
+
+export const TRAIT_TYPES: TraitType[] = ["neat", "outgoing", "active", "playful", "nice"];
+
+export const TRAIT_LABELS: Record<TraitType, string> = {
+  neat: "Neat",
+  outgoing: "Outgoing",
+  active: "Active",
+  playful: "Playful",
+  nice: "Nice",
+};
+
+/** Which trait, if any, modulates how effectively a Sim gains from a given motive's interactions. */
+export const TRAIT_FOR_MOTIVE: Partial<Record<MotiveType, TraitType>> = {
+  fun: "playful",
+  social: "outgoing",
+  hygiene: "neat",
+};
