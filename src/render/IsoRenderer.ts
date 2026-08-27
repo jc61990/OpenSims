@@ -1,4 +1,4 @@
-import { Application, Container, Graphics, Text, TextStyle } from "pixi.js";
+import { Application, BlurFilter, Container, Graphics, Text, TextStyle } from "pixi.js";
 import { gridToScreen, screenToGrid } from "../engine/IsoMath.ts";
 import { tileCorners, drawBlock, shade } from "./IsoDraw.ts";
 import { drawObject } from "./ObjectArt.ts";
@@ -24,6 +24,9 @@ export interface RendererCallbacks {
 export class IsoRenderer {
   app!: Application;
   world!: Container;
+  private floorGfx!: Graphics;
+  private shadowLayer!: Container;
+  private shadowGfx!: Graphics;
   private scene!: Graphics;
   private labelsLayer!: Container;
   private simLabels = new Map<number, Text>();
@@ -54,6 +57,19 @@ export class IsoRenderer {
     this.world = new Container();
     this.world.position.set(this.app.renderer.width / 2, 140);
     this.app.stage.addChild(this.world);
+
+    this.floorGfx = new Graphics();
+    this.world.addChild(this.floorGfx);
+
+    // A dedicated blurred layer for soft ambient shadows, kept separate from
+    // `scene` since a filter blurs everything on its container — walls,
+    // objects, and Sims must stay crisp. The filter is created once here and
+    // reused every frame; only its contents (shadowGfx) get cleared/redrawn.
+    this.shadowLayer = new Container();
+    this.shadowLayer.filters = [new BlurFilter({ strength: 4, quality: 2 })];
+    this.shadowGfx = new Graphics();
+    this.shadowLayer.addChild(this.shadowGfx);
+    this.world.addChild(this.shadowLayer);
 
     this.scene = new Graphics();
     this.world.addChild(this.scene);
@@ -143,9 +159,14 @@ export class IsoRenderer {
 
   private render(): void {
     const now = performance.now();
-    this.scene.clear();
+    this.floorGfx.clear();
     this.drawFloors();
 
+    const sims = this.getSims();
+    this.shadowGfx.clear();
+    this.drawShadows(sims);
+
+    this.scene.clear();
     const items: Drawable[] = [];
 
     for (let y = 0; y < this.lot.height; y++) {
@@ -153,7 +174,7 @@ export class IsoRenderer {
         if (this.lot.hasWall(x, y)) {
           items.push({
             depth: x + y,
-            draw: (g) => drawBlock(g, x, y, WALL_HEIGHT, WALL_TOP, WALL_LEFT, WALL_RIGHT),
+            draw: (g) => drawBlock(g, x, y, WALL_HEIGHT, WALL_TOP, WALL_LEFT, WALL_RIGHT, false),
           });
         }
       }
@@ -166,7 +187,6 @@ export class IsoRenderer {
       });
     }
 
-    const sims = this.getSims();
     for (const sim of sims) {
       items.push({
         depth: sim.x + sim.y + 0.02,
@@ -187,11 +207,23 @@ export class IsoRenderer {
         const [n, e, s, w] = tileCorners(x, y);
         const base = this.lot.getFloor(x, y);
         const color = (x + y) % 2 === 0 ? base : shade(base, 0.92);
-        this.scene
+        this.floorGfx
           .poly([n.x, n.y, e.x, e.y, s.x, s.y, w.x, w.y])
           .fill(color)
           .stroke({ width: 1, color: FLOOR_LINE, alpha: 0.35 });
       }
+    }
+  }
+
+  /** Soft blurred contact shadows for objects and Sims, rendered on their own filtered layer. */
+  private drawShadows(sims: Sim[]): void {
+    for (const obj of this.lot.objects) {
+      const c = gridToScreen(obj.gridX + 0.5, obj.gridY + 0.5);
+      this.shadowGfx.ellipse(c.x, c.y + 3, 17, 8).fill({ color: 0x000000, alpha: 0.4 });
+    }
+    for (const sim of sims) {
+      const c = gridToScreen(sim.x + 0.5, sim.y + 0.5);
+      this.shadowGfx.ellipse(c.x, c.y + 2, 11, 5).fill({ color: 0x000000, alpha: 0.4 });
     }
   }
 
@@ -203,8 +235,6 @@ export class IsoRenderer {
 
     if (sim.id === this.selectedSimId) {
       g.ellipse(center.x, baseY + 2, 14, 7).fill({ color: 0xffffff, alpha: 0.25 });
-    } else {
-      g.ellipse(center.x, baseY + 2, 11, 5).fill({ color: 0x000000, alpha: 0.3 });
     }
 
     const bodyTop = baseY - 30 + bob;
@@ -212,24 +242,24 @@ export class IsoRenderer {
     const hairColor = shade(sim.color, 0.4);
     const skinTone = 0xe8c39e;
 
-    // Legs
-    g.rect(center.x - 6, bodyBottom - 10, 5, 10).fill(shade(sim.color, 0.55));
-    g.rect(center.x + 1, bodyBottom - 10, 5, 10).fill(shade(sim.color, 0.45));
+    // Legs — pill-shaped, full-radius rounded rects read as soft limbs rather than blocks.
+    g.roundRect(center.x - 6, bodyBottom - 10, 5, 10, 2.5).fill(shade(sim.color, 0.55));
+    g.roundRect(center.x + 1, bodyBottom - 10, 5, 10, 2.5).fill(shade(sim.color, 0.45));
 
-    // Torso (two-tone shirt)
-    g.roundRect(center.x - 8, bodyTop, 16, 20, 4).fill(sim.color);
-    g.rect(center.x - 8, bodyTop + 12, 16, 8).fill(shade(sim.color, 0.72));
+    // Torso (two-tone shirt), generously rounded into a soft capsule.
+    g.roundRect(center.x - 8, bodyTop, 16, 20, 8).fill(sim.color);
+    g.roundRect(center.x - 8, bodyTop + 11, 16, 9, 6).fill(shade(sim.color, 0.72));
 
     // Arms
     const armSwing = walking ? Math.sin(now / 90 + sim.id + Math.PI) * 3 : 0;
-    g.roundRect(center.x - 11, bodyTop + 2 + armSwing, 3.5, 14, 2).fill(skinTone);
-    g.roundRect(center.x + 7.5, bodyTop + 2 - armSwing, 3.5, 14, 2).fill(skinTone);
+    g.roundRect(center.x - 11, bodyTop + 2 + armSwing, 3.5, 14, 1.75).fill(skinTone);
+    g.roundRect(center.x + 7.5, bodyTop + 2 - armSwing, 3.5, 14, 1.75).fill(skinTone);
 
-    // Head + hair
+    // Head + rounded hair cap
     const headY = bodyTop - 8;
-    g.circle(center.x, headY, 8).fill(skinTone);
-    g.circle(center.x, headY - 4, 7).fill(hairColor);
-    g.rect(center.x - 7, headY - 4, 14, 5).fill(hairColor);
+    g.circle(center.x, headY, 8.5).fill(skinTone);
+    g.circle(center.x, headY - 3.5, 7.5).fill(hairColor);
+    g.roundRect(center.x - 7.5, headY - 6, 15, 7, 4).fill(hairColor);
 
     // Simple face
     const faceDx = Math.sign(sim.facing.dx) * 2.5;

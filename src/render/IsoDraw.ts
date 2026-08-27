@@ -50,7 +50,13 @@ function faces(gx: number, gy: number, height: number): BlockFaces {
   };
 }
 
-/** Draws a solid box (two shaded side faces + a top face) and returns its corner points for decoration overlays. */
+/**
+ * Draws a solid box (two shaded side faces + a top face) and returns its corner points for
+ * decoration overlays. Faces get a cheap soft-lit look — a highlight blob near the top face's
+ * "back" corner and a darker contact-shadow band at each side face's base — built from a couple
+ * of extra flat, low-alpha fills rather than a real gradient (PixiJS's FillGradient allocates a
+ * GPU texture per instance, which would leak badly if recreated every frame like this scene is).
+ */
 export function drawBlock(
   g: Graphics,
   gx: number,
@@ -59,11 +65,29 @@ export function drawBlock(
   topColor: number,
   leftColor: number,
   rightColor: number,
+  topGlow = true,
 ): BlockFaces {
   const f = faces(gx, gy, height);
-  g.poly([f.bw.x, f.bw.y, f.bs.x, f.bs.y, f.ts.x, f.ts.y, f.tw.x, f.tw.y]).fill(leftColor);
-  g.poly([f.bs.x, f.bs.y, f.be.x, f.be.y, f.te.x, f.te.y, f.ts.x, f.ts.y]).fill(rightColor);
-  g.poly([f.tn.x, f.tn.y, f.te.x, f.te.y, f.ts.x, f.ts.y, f.tw.x, f.tw.y]).fill(topColor);
+  const leftPts = [f.bw, f.bs, f.ts, f.tw];
+  const rightPts = [f.bs, f.be, f.te, f.ts];
+  const topPts = [f.tn, f.te, f.ts, f.tw];
+
+  fillPoly(g, leftPts, leftColor);
+  fillPoly(g, rightPts, rightColor);
+  fillPoly(g, topPts, topColor);
+
+  // Contact-shadow band along the base of each side face.
+  fillPoly(g, [f.bw, f.bs, leftFacePoint(f, 1, 0.22), leftFacePoint(f, 0, 0.22)], 0x000000, 0.16);
+  fillPoly(g, [f.bs, f.be, rightFacePoint(f, 1, 0.22), rightFacePoint(f, 0, 0.22)], 0x000000, 0.16);
+
+  // Soft highlight on the top face, offset toward the back (N) corner like an overhead light.
+  // Skipped for elongated runs of tiles (e.g. walls), where one per tile reads as a repeating
+  // polka-dot pattern rather than a single soft light.
+  if (topGlow) {
+    const glow = topPoint(f, 0.32, 0.32);
+    g.circle(glow.x, glow.y, Math.min(16, Math.max(6, height * 0.3))).fill({ color: 0xffffff, alpha: 0.1 });
+  }
+
   return f;
 }
 
