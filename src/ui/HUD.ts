@@ -8,7 +8,7 @@ import {
   type TraitType,
 } from "../game/types.ts";
 import { OBJECT_CATALOG } from "../game/ObjectCatalog.ts";
-import { JOB_CATALOG } from "../game/Job.ts";
+import { CAREER_TRACKS } from "../game/Job.ts";
 import { formatMinuteOfDay, type SimSpeed } from "../engine/Clock.ts";
 import type { Sim } from "../game/Sim.ts";
 
@@ -28,7 +28,7 @@ export interface HUDCallbacks {
   onRemoveSim: () => void;
   onSave: () => void;
   onResetSave: () => void;
-  onSetJob: (jobId: string | null) => void;
+  onSetCareer: (careerId: string | null) => void;
   /** Fired once the Create Sim modal is submitted; placement mode arms right after. */
   onCreateSim: (data: NewSimData) => void;
 }
@@ -69,6 +69,11 @@ export class HUD {
   private colorSwatches: HTMLElement[] = [];
   private selectedColor = SIM_COLOR_POOL[0];
   private traitSliders = {} as Record<TraitType, HTMLInputElement>;
+  private careerStatusEl!: HTMLElement;
+  private careerTitleEl!: HTMLElement;
+  private careerProgressFillEl!: HTMLElement;
+  private promotionToastEl!: HTMLElement;
+  private promotionToastTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(root: HTMLElement, callbacks: HUDCallbacks) {
     this.root = root;
@@ -86,6 +91,11 @@ export class HUD {
       </div>
     `;
     this.root.appendChild(topBar);
+
+    this.promotionToastEl = document.createElement("div");
+    this.promotionToastEl.className = "promotion-toast";
+    this.promotionToastEl.style.display = "none";
+    this.root.appendChild(this.promotionToastEl);
 
     const hud = document.createElement("div");
     hud.className = "hud";
@@ -137,6 +147,20 @@ export class HUD {
     careerHeading.className = "section-heading";
     careerHeading.textContent = "Career";
     simPanel.appendChild(careerHeading);
+
+    this.careerStatusEl = document.createElement("div");
+    this.careerStatusEl.className = "career-status";
+    this.careerTitleEl = document.createElement("div");
+    this.careerTitleEl.className = "career-status-title";
+    this.careerStatusEl.appendChild(this.careerTitleEl);
+    const progressBar = document.createElement("div");
+    progressBar.className = "motive-bar";
+    this.careerProgressFillEl = document.createElement("div");
+    this.careerProgressFillEl.className = "motive-bar-fill promo-fill";
+    progressBar.appendChild(this.careerProgressFillEl);
+    this.careerStatusEl.appendChild(progressBar);
+    simPanel.appendChild(this.careerStatusEl);
+
     this.careerEl = document.createElement("div");
     this.careerEl.className = "palette-panel career-panel";
     simPanel.appendChild(this.careerEl);
@@ -355,19 +379,32 @@ export class HUD {
   }
 
   private buildCareerButtons(): void {
-    const makeButton = (jobId: string | null, html: string) => {
+    const makeButton = (careerId: string | null, html: string) => {
       const item = document.createElement("div");
       item.className = "palette-item career-item";
       item.innerHTML = html;
-      item.dataset.job = jobId ?? "none";
-      item.onclick = () => this.callbacks.onSetJob(jobId);
+      item.dataset.job = careerId ?? "none";
+      item.onclick = () => this.callbacks.onSetCareer(careerId);
       this.careerEl.appendChild(item);
     };
     makeButton(null, "Unemployed");
-    for (const job of Object.values(JOB_CATALOG)) {
-      const schedule = `${formatMinuteOfDay(job.leaveMinute)}–${formatMinuteOfDay(job.returnMinute)}`;
-      makeButton(job.id, `${job.title}<br><span class="palette-price">${formatMoney(job.dailyPay)}/day · ${schedule}</span>`);
+    for (const track of Object.values(CAREER_TRACKS)) {
+      const entry = track.levels[0];
+      const schedule = `${formatMinuteOfDay(entry.leaveMinute)}–${formatMinuteOfDay(entry.returnMinute)}`;
+      makeButton(
+        track.id,
+        `${track.name}<br><span class="palette-price">${entry.title} · ${formatMoney(entry.dailyPay)}/day · ${schedule}</span>`,
+      );
     }
+  }
+
+  flashPromotion(simName: string, newTitle: string): void {
+    this.promotionToastEl.textContent = `🎉 ${simName} was promoted to ${newTitle}!`;
+    this.promotionToastEl.style.display = "block";
+    if (this.promotionToastTimer) clearTimeout(this.promotionToastTimer);
+    this.promotionToastTimer = setTimeout(() => {
+      this.promotionToastEl.style.display = "none";
+    }, 3500);
   }
 
   private refreshPalette(): void {
@@ -472,7 +509,20 @@ export class HUD {
 
     const careerItems = this.careerEl.querySelectorAll<HTMLElement>(".career-item");
     for (const item of careerItems) {
-      item.classList.toggle("active", item.dataset.job === (sim.jobId ?? "none"));
+      item.classList.toggle("active", item.dataset.job === (sim.careerId ?? "none"));
+    }
+
+    const track = sim.careerId ? CAREER_TRACKS[sim.careerId] : null;
+    const level = track?.levels[sim.careerLevel];
+    if (track && level) {
+      const atTop = sim.careerLevel >= track.levels.length - 1;
+      this.careerTitleEl.textContent = atTop
+        ? `${level.title} (top of ${track.name})`
+        : `${level.title} — ${Math.round(sim.promotionProgress)}% to promotion`;
+      this.careerProgressFillEl.style.width = atTop ? "100%" : `${sim.promotionProgress}%`;
+      this.careerStatusEl.style.display = "block";
+    } else {
+      this.careerStatusEl.style.display = "none";
     }
 
     this.actionLabelEl.textContent = sim.currentAction;

@@ -27,7 +27,12 @@ export class Sim {
   private relationships = new Map<number, number>();
   state: SimState = "idle";
   currentAction = "Idle";
-  jobId: string | null = null;
+  /** The career track's id (see game/Job.ts), or null if unemployed. */
+  careerId: string | null = null;
+  /** Index into the track's levels array. */
+  careerLevel = 0;
+  /** 0-100 progress toward the next promotion; see Jobs.ts. */
+  promotionProgress = 0;
 
   path: GridPoint[] = [];
   private onArrive: (() => void) | null = null;
@@ -59,6 +64,13 @@ export class Sim {
 
   relationshipEntries(): [number, number][] {
     return [...this.relationships.entries()];
+  }
+
+  /** Quit (null) or start fresh at level 0 of a new career track. */
+  setCareer(careerId: string | null): void {
+    this.careerId = careerId;
+    this.careerLevel = 0;
+    this.promotionProgress = 0;
   }
 
   get gridX(): number {

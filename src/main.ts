@@ -177,10 +177,10 @@ async function main(): Promise<void> {
       clearStorage();
       window.location.reload();
     },
-    onSetJob: (jobId) => {
+    onSetCareer: (careerId) => {
       const sim = sims.find((s) => s.id === selectedSimId);
       if (!sim) return;
-      sim.jobId = jobId;
+      sim.setCareer(careerId);
       hud.renderSim(sim, sims);
     },
     onCreateSim: (data) => {
@@ -242,10 +242,15 @@ async function main(): Promise<void> {
     if (simMinutes > 0) {
       for (const sim of sims) sim.update(simMinutes, lot);
       updateAI(sims, lot);
-      updateJobs(sims, clock, (amount) => {
-        funds += amount;
-        hud.setFunds(funds);
-      });
+      updateJobs(
+        sims,
+        clock,
+        (amount) => {
+          funds += amount;
+          hud.setFunds(funds);
+        },
+        (sim, newTitle) => hud.flashPromotion(sim.name, newTitle),
+      );
     }
     hud.setClock(`${clock.dayName} · ${clock.formatTime()}`);
     const selected = sims.find((s) => s.id === selectedSimId) ?? null;

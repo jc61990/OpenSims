@@ -249,6 +249,37 @@ body {
   border-color: #7fa3e6;
 }
 
+.career-status {
+  display: none;
+  margin-bottom: 8px;
+}
+
+.career-status-title {
+  font-size: 11px;
+  opacity: 0.85;
+  margin-bottom: 3px;
+}
+
+.promo-fill {
+  background: #4ad67f;
+}
+
+.promotion-toast {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #2c8a52;
+  color: #fff;
+  padding: 10px 18px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  z-index: 50;
+  pointer-events: none;
+}
+
 .buy-status {
   min-height: 14px;
   width: 100%;

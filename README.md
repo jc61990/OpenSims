@@ -71,7 +71,9 @@ Each Sim has a `Personality` (`game/Personality.ts`): five traits scored 0-10 �
 
 ### Money and jobs
 
-The household shares one `funds` balance (starting at §3,000), spent in Buy mode — each object in `ObjectCatalog.ts` has a `price`, and a placement is refused with a "Not enough funds" flash if the household can't afford it. `game/Job.ts` defines a small single-tier career list (title, daily pay, and a leave/return time), and `game/Jobs.ts` runs every tick: any Sim with a job whose shift has started gets interrupted (whatever they were doing) and marked `atWork` — hidden from the lot entirely, since there's no actual workplace or commute animation, just the classic Sims abstraction of "they're gone for the day" — then reappears at quitting time with the day's pay added to the household funds. Jobs only run Monday-Friday (`WORK_DAYS` in `Job.ts`); weekends are automatically off.
+The household shares one `funds` balance (starting at §3,000), spent in Buy mode — each object in `ObjectCatalog.ts` has a `price`, and a placement is refused with a "Not enough funds" flash if the household can't afford it. `game/Job.ts` defines a handful of career tracks (Paper Route, Retail, Business, Science), each a list of `JobLevel`s with their own title, daily pay, and leave/return time. `game/Jobs.ts` runs every tick: any Sim on a track whose shift has started gets interrupted (whatever they were doing) and marked `atWork` — hidden from the lot entirely, since there's no actual workplace or commute animation, just the classic Sims abstraction of "they're gone for the day" — then reappears at quitting time with the day's pay added to the household funds. Jobs only run Monday-Friday (`WORK_DAYS` in `Job.ts`); weekends are automatically off.
+
+Promotions run on the same return-from-work event: each Sim's motives (hunger, energy, hygiene, fun) are snapshotted into a 0-100 "performance" score the moment they *leave* for their shift — the Sims 1 idea that showing up well-rested, fed, and groomed is what gets you ahead — and that score scales how much `promotionProgress` gains toward the next level (a track's `daysToPromote` is roughly how many good days it takes at full performance). Hit 100% and the Sim levels up, resetting progress and firing a toast (`HUD.flashPromotion`) with their new title; the Sim panel's career section shows the live progress bar. A track's last level has `daysToPromote: 0` and simply caps out.
 
 ### Current simplifications (good first-contribution targets)
 
@@ -82,7 +84,7 @@ The household shares one `funds` balance (starting at §3,000), spent in Buy mod
 - **Relationships are a single scalar** — no relationship types (friend/romantic/enemy), no memory of specific events, just one number that goes up when Sims chat.
 - **A single flat save slot** — one `localStorage` key, no named saves or multiple households.
 - **No multi-lot / neighborhood view** — one lot, no traveling between lots.
-- **Jobs are single-tier** — no promotions, no performance requirements, and no chance of getting fired; motives keep decaying normally while a Sim is at work, but nothing currently checks them.
+- **No chance of getting fired** — performance below par just slows promotion, it never costs a Sim their job; motives also keep decaying normally while a Sim is at work with nothing checking them mid-shift (only the departure snapshot matters).
 
 ## Contributing
 
