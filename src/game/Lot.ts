@@ -167,8 +167,7 @@ export class Lot {
    * doorway gap is just an absent edge like open floor, so two rooms joined
    * by a doorway come back as one region — this is reachability, not true
    * Sims-style room membership (where each side of a door is still counted
-   * as its own room). Useful groundwork for a future room-quality/
-   * environment feature; not wired into gameplay yet.
+   * as its own room). Used by computeRoomScore below.
    */
   getRoomTiles(x: number, y: number): { x: number; y: number }[] {
     if (!this.inBounds(x, y)) return [];
@@ -197,5 +196,21 @@ export class Lot {
       }
     }
     return result;
+  }
+
+  /**
+   * Scores the environment quality (0-100) of the connected region
+   * containing (x,y), from the total decorValue of objects within it. This
+   * is what drives the Room motive (game/types.ts) — not a decaying need
+   * like the others, but a direct read of a Sim's current surroundings,
+   * recomputed fresh every tick rather than accumulated over time.
+   */
+  computeRoomScore(x: number, y: number): number {
+    const tileKeys = new Set(this.getRoomTiles(x, y).map((t) => `${t.x},${t.y}`));
+    let totalDecor = 0;
+    for (const obj of this.objects) {
+      if (tileKeys.has(`${obj.gridX},${obj.gridY}`)) totalDecor += obj.decorValue;
+    }
+    return Math.max(0, Math.min(100, 10 + totalDecor * 1.2));
   }
 }

@@ -146,6 +146,13 @@ export class Sim {
       case "atWork":
         break;
     }
+
+    // Room isn't a decaying need — it's a direct read of the Sim's current
+    // surroundings, recomputed every tick. Skipped while at work since
+    // they're off the lot entirely and have no "current room" to reflect.
+    if (this.state !== "atWork") {
+      this.motives.set("room", lot.computeRoomScore(this.gridX, this.gridY));
+    }
   }
 
   private stepWalk(simMinutes: number, lot: Lot): void {

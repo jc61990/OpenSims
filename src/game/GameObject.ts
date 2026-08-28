@@ -18,6 +18,8 @@ export interface GameObjectDef {
   interactions: Interaction[];
   /** Simoleons to place this object in Buy mode. */
   price: number;
+  /** How much this object contributes to a room's environment score (0-10ish; decorative items score higher relative to their price than plain fixtures). */
+  decorValue: number;
   /** Where (relative to the object tile) a sim must stand to use it. */
   standOffset?: { dx: number; dy: number };
   walkable?: boolean;
@@ -32,6 +34,7 @@ export class GameObject {
   readonly color: number;
   readonly interactions: Interaction[];
   readonly price: number;
+  readonly decorValue: number;
   readonly standOffset: { dx: number; dy: number };
   readonly walkable: boolean;
   gridX: number;
@@ -45,6 +48,7 @@ export class GameObject {
     this.color = def.color;
     this.interactions = def.interactions;
     this.price = def.price;
+    this.decorValue = def.decorValue;
     this.standOffset = def.standOffset ?? { dx: 0, dy: 1 };
     this.walkable = def.walkable ?? false;
     this.gridX = gridX;

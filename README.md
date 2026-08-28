@@ -52,7 +52,7 @@ src/
 
 Walls live on tile *edges*, the way they do in the actual Sims games — not filling a tile the way this project's own first pass at walls did. `Lot.ts` stores two boolean edge grids (`vWalls`/`hWalls`, one entry per vertical/horizontal tile boundary) instead of a per-tile flag, so every tile is real floor and a doorway gap is an exact single opening rather than a whole missing wall tile. `Lot.canMove(x1,y1,x2,y2)` is the single source of truth for whether a Sim can step between two adjacent tiles — it checks the shared edge for orthogonal moves and requires both straight "legs" clear for diagonal ones — and both `Pathfinding.ts` and `Sim.stepWalk`'s mid-walk replan check call it, so a wall built while a Sim is already walking through it makes them reroute. Rendering reuses the same soft-shaded box-face geometry as furniture (`IsoDraw.drawWallSegment`/`drawWallPost`) with a thin footprint instead of a whole-tile diamond, plus a small corner post at every vertex touching a wall so adjacent segments don't show a gap where they meet.
 
-Zero-thickness edges also make a real (if basic) room-detection utility possible: `Lot.getRoomTiles(x,y)` flood-fills the connected region reachable without crossing a *present* wall edge. Worth being precise about what that means: a doorway gap is indistinguishable from open floor to this flood-fill, so two rooms joined by a doorway come back as one region — this is reachability, not true Sims-style room membership, where each side of a door still counts as its own room. It's not wired into gameplay yet; it's groundwork for a future room-quality/environment motive.
+Zero-thickness edges also make a real (if basic) room-detection utility possible: `Lot.getRoomTiles(x,y)` flood-fills the connected region reachable without crossing a *present* wall edge. Worth being precise about what that means: a doorway gap is indistinguishable from open floor to this flood-fill, so two rooms joined by a doorway come back as one region — this is reachability, not true Sims-style room membership, where each side of a door still counts as its own room. It now feeds `Lot.computeRoomScore`, described below.
 
 ### Core simulation loop
 
@@ -60,6 +60,10 @@ Zero-thickness edges also make a real (if basic) room-detection utility possible
 2. Each `Sim` decays its motives (hunger, energy, bladder, hygiene, social, fun) every sim-minute, and steps whatever it's currently doing — walking a path, using an object, or socializing with another Sim.
 3. `updateAI` runs an autonomy pass each tick: any idle Sim whose most urgent motive drops below a threshold will path to the nearest free object that satisfies it (or, for social, path to and start chatting with another idle Sim).
 4. `IsoRenderer` redraws the lot every frame — floor tiles, then walls/objects/Sims painter-sorted back-to-front by grid depth.
+
+### Room quality
+
+Room is a seventh motive, but it doesn't decay like the others — `Sim.update` overwrites it every tick with `Lot.computeRoomScore(gridX, gridY)`, a direct read of the Sim's current surroundings rather than a need that drains over time. The score comes from the total `decorValue` of every object in the Sim's connected region (via `getRoomTiles`): `clamp(0, 100, 10 + totalDecor * 1.2)`, so a bare room floors at 10 and a well-furnished one climbs toward 100 as you buy more (each `ObjectCatalog.ts` entry has its own `decorValue` — decorative pieces like a painting or plant score higher relative to their price than a plain fixture like a sink). Since it's folded into `MOTIVE_TYPES`, it counts toward overall mood the same as any other motive for free. Skipped while a Sim is `atWork`, since they're off the lot with no current room to reflect. Given the doorway-merges-rooms caveat above, right now this reads as "how well is the whole connected house decorated" rather than a true per-room score — accurate to the underlying reachability model, just not as granular as the real thing yet.
 
 ### Personality and relationships
 
@@ -72,7 +76,7 @@ The household shares one `funds` balance (starting at §3,000), spent in Buy mod
 ### Current simplifications (good first-contribution targets)
 
 - **Walls are still axis-aligned edges** — real edge walls now (not tile-filling), but no diagonal walls yet.
-- **Room detection is reachability, not room membership** — see the Walls section above; a doorway merges the two rooms it connects into one flood-fill region.
+- **Room quality isn't per-room** — see Room quality above; a doorway merges the rooms it connects into one flood-fill region, so decorating one room raises the score everywhere connected to it, not just that room.
 - **Still no sprite art** — object/Sim detail is procedural vector drawing (`ObjectArt.ts`), not sprite sheets: soft blurred contact shadows, a two-layer "glow" fake instead of real gradients (PixiJS's `FillGradient` allocates a GPU texture per instance, which isn't safe to recreate every frame the way this scene redraws), and rounded/capsule Sim bodies instead of flat boxes. It reads much less "voxel game" than flat blocks, but real hand-drawn isometric sprites would still be a big visual upgrade, especially for Sims.
 - **No mid-life customization** — the Create Sim modal covers name/color/personality up front, but there's no way to rename a Sim or edit their traits after they're already placed.
 - **Relationships are a single scalar** — no relationship types (friend/romantic/enemy), no memory of specific events, just one number that goes up when Sims chat.

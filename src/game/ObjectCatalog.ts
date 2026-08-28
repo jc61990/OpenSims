@@ -6,6 +6,7 @@ export const OBJECT_CATALOG: Record<string, GameObjectDef> = {
     label: "Fridge",
     color: 0xc7d6e0,
     price: 600,
+    decorValue: 3,
     standOffset: { dx: 0, dy: 1 },
     interactions: [
       { id: "eat", label: "Grab a snack", motive: "hunger", gainPerMinute: 8, durationMinutes: 12 },
@@ -16,6 +17,7 @@ export const OBJECT_CATALOG: Record<string, GameObjectDef> = {
     label: "Bed",
     color: 0x6f8fd6,
     price: 350,
+    decorValue: 4,
     standOffset: { dx: 0, dy: 1 },
     interactions: [
       { id: "sleep", label: "Sleep", motive: "energy", gainPerMinute: 2, durationMinutes: 240 },
@@ -26,6 +28,7 @@ export const OBJECT_CATALOG: Record<string, GameObjectDef> = {
     label: "Shower",
     color: 0x8fd6d0,
     price: 450,
+    decorValue: 2,
     standOffset: { dx: 0, dy: 1 },
     interactions: [
       { id: "wash", label: "Shower", motive: "hygiene", gainPerMinute: 10, durationMinutes: 10 },
@@ -36,6 +39,7 @@ export const OBJECT_CATALOG: Record<string, GameObjectDef> = {
     label: "Toilet",
     color: 0xe0e0e0,
     price: 250,
+    decorValue: 1,
     standOffset: { dx: 0, dy: 1 },
     interactions: [
       { id: "use", label: "Use toilet", motive: "bladder", gainPerMinute: 15, durationMinutes: 7 },
@@ -46,6 +50,7 @@ export const OBJECT_CATALOG: Record<string, GameObjectDef> = {
     label: "TV",
     color: 0x333333,
     price: 500,
+    decorValue: 5,
     standOffset: { dx: 0, dy: 1 },
     interactions: [
       { id: "watch", label: "Watch TV", motive: "fun", gainPerMinute: 4, durationMinutes: 60 },
@@ -56,6 +61,7 @@ export const OBJECT_CATALOG: Record<string, GameObjectDef> = {
     label: "Stereo",
     color: 0xd6a54a,
     price: 350,
+    decorValue: 4,
     standOffset: { dx: 0, dy: 1 },
     interactions: [
       { id: "listen", label: "Listen to music", motive: "fun", gainPerMinute: 5, durationMinutes: 45 },
@@ -66,6 +72,7 @@ export const OBJECT_CATALOG: Record<string, GameObjectDef> = {
     label: "Bookshelf",
     color: 0x8a5a3a,
     price: 200,
+    decorValue: 5,
     standOffset: { dx: 0, dy: 1 },
     interactions: [
       { id: "read", label: "Read", motive: "fun", gainPerMinute: 3, durationMinutes: 45 },
@@ -76,6 +83,7 @@ export const OBJECT_CATALOG: Record<string, GameObjectDef> = {
     label: "Sofa",
     color: 0xb0563f,
     price: 400,
+    decorValue: 5,
     standOffset: { dx: 0, dy: 1 },
     interactions: [
       { id: "relax", label: "Relax", motive: "fun", gainPerMinute: 6, durationMinutes: 30 },
@@ -86,6 +94,7 @@ export const OBJECT_CATALOG: Record<string, GameObjectDef> = {
     label: "Sink",
     color: 0xd8dde0,
     price: 150,
+    decorValue: 1,
     standOffset: { dx: 0, dy: 1 },
     interactions: [
       { id: "washup", label: "Wash up", motive: "hygiene", gainPerMinute: 6, durationMinutes: 5 },
@@ -96,6 +105,7 @@ export const OBJECT_CATALOG: Record<string, GameObjectDef> = {
     label: "Dresser",
     color: 0x6b4a35,
     price: 180,
+    decorValue: 3,
     standOffset: { dx: 0, dy: 1 },
     interactions: [
       { id: "change", label: "Change clothes", motive: "hygiene", gainPerMinute: 4, durationMinutes: 8 },
@@ -106,6 +116,7 @@ export const OBJECT_CATALOG: Record<string, GameObjectDef> = {
     label: "Counter",
     color: 0xcbb994,
     price: 120,
+    decorValue: 2,
     standOffset: { dx: 0, dy: 1 },
     interactions: [],
   },
@@ -114,6 +125,7 @@ export const OBJECT_CATALOG: Record<string, GameObjectDef> = {
     label: "Plant",
     color: 0x4a8a4a,
     price: 40,
+    decorValue: 6,
     standOffset: { dx: 0, dy: 1 },
     interactions: [],
   },
@@ -122,6 +134,7 @@ export const OBJECT_CATALOG: Record<string, GameObjectDef> = {
     label: "Painting",
     color: 0x9a6ac2,
     price: 90,
+    decorValue: 7,
     standOffset: { dx: 0, dy: 1 },
     interactions: [],
   },

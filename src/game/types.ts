@@ -1,4 +1,4 @@
-export type MotiveType = "hunger" | "energy" | "bladder" | "hygiene" | "social" | "fun";
+export type MotiveType = "hunger" | "energy" | "bladder" | "hygiene" | "social" | "fun" | "room";
 
 export const MOTIVE_TYPES: MotiveType[] = [
   "hunger",
@@ -7,6 +7,7 @@ export const MOTIVE_TYPES: MotiveType[] = [
   "hygiene",
   "social",
   "fun",
+  "room",
 ];
 
 export const MOTIVE_LABELS: Record<MotiveType, string> = {
@@ -16,9 +17,12 @@ export const MOTIVE_LABELS: Record<MotiveType, string> = {
   hygiene: "Hygiene",
   social: "Social",
   fun: "Fun",
+  room: "Room",
 };
 
-// Motive decay per sim-hour, tuned loosely after Sims 1 pacing.
+// Motive decay per sim-hour, tuned loosely after Sims 1 pacing. Room doesn't
+// decay on its own — it's recomputed fresh every tick from the Sim's current
+// surroundings (Lot.computeRoomScore), so it has no drift rate of its own.
 export const MOTIVE_DECAY_PER_HOUR: Record<MotiveType, number> = {
   hunger: 4,
   energy: 3,
@@ -26,6 +30,7 @@ export const MOTIVE_DECAY_PER_HOUR: Record<MotiveType, number> = {
   hygiene: 3,
   social: 2.5,
   fun: 2.5,
+  room: 0,
 };
 
 export interface GridPos {

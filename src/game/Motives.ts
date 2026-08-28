@@ -14,6 +14,7 @@ export class Motives {
       hygiene: 70,
       social: 50,
       fun: 50,
+      room: 50,
       ...initial,
     };
   }
