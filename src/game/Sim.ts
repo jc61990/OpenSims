@@ -71,8 +71,8 @@ export class Sim {
 
   /** Attempt to path to (tx,ty). Returns false if unreachable. */
   walkTo(lot: Lot, tx: number, ty: number, onArrive?: () => void): boolean {
-    const path = findPath({ x: this.gridX, y: this.gridY }, { x: tx, y: ty }, (x, y) =>
-      lot.isWalkable(x, y),
+    const path = findPath({ x: this.gridX, y: this.gridY }, { x: tx, y: ty }, (x1, y1, x2, y2) =>
+      lot.canMove(x1, y1, x2, y2),
     );
     if (path === null) return false;
 
@@ -152,7 +152,7 @@ export class Sim {
     let remaining = simMinutes * WALK_SPEED_TILES_PER_MINUTE;
     while (remaining > 0 && this.path.length > 0) {
       const next = this.path[0];
-      if (!lot.isWalkable(next.x, next.y)) {
+      if (!lot.canMove(this.gridX, this.gridY, next.x, next.y)) {
         // Path became blocked (e.g. a wall was built); abandon it.
         this.path = [];
         break;

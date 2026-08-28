@@ -26,7 +26,7 @@ npm run typecheck
 - **Drag** to pan the camera, **scroll** to zoom
 - **Live mode**: click a Sim to select them and watch their motives in the bottom-left panel
 - **Buy mode**: pick an object from the palette, then click a floor tile to place it
-- **Walls mode**: click a tile to toggle a wall on/off
+- **Walls mode**: click near an edge of a tile to toggle a wall on that edge — walls live on tile boundaries, so a click is matched to whichever of the tile's 4 edges it landed closest to
 - **+ Sim mode**: click an open floor tile to add a new Sim to the household; **Remove** in the Sim panel deletes the selected one
 - Speed controls (`II`, `1x`, `2x`, `3x`) control simulation speed, matching the classic pause/play/fast-forward keys
 - **Save** writes the lot and Sims to `localStorage`; **Reset** discards the save and reloads the starter lot
@@ -48,6 +48,12 @@ src/
 
 `game/SaveGame.ts` (de)serializes the lot (dimensions, walls, objects) and Sims (position, motives) to a single `localStorage` key.
 
+### Walls
+
+Walls live on tile *edges*, the way they do in the actual Sims games — not filling a tile the way this project's own first pass at walls did. `Lot.ts` stores two boolean edge grids (`vWalls`/`hWalls`, one entry per vertical/horizontal tile boundary) instead of a per-tile flag, so every tile is real floor and a doorway gap is an exact single opening rather than a whole missing wall tile. `Lot.canMove(x1,y1,x2,y2)` is the single source of truth for whether a Sim can step between two adjacent tiles — it checks the shared edge for orthogonal moves and requires both straight "legs" clear for diagonal ones — and both `Pathfinding.ts` and `Sim.stepWalk`'s mid-walk replan check call it, so a wall built while a Sim is already walking through it makes them reroute. Rendering reuses the same soft-shaded box-face geometry as furniture (`IsoDraw.drawWallSegment`/`drawWallPost`) with a thin footprint instead of a whole-tile diamond, plus a small corner post at every vertex touching a wall so adjacent segments don't show a gap where they meet.
+
+Zero-thickness edges also make a real (if basic) room-detection utility possible: `Lot.getRoomTiles(x,y)` flood-fills the connected region reachable without crossing a *present* wall edge. Worth being precise about what that means: a doorway gap is indistinguishable from open floor to this flood-fill, so two rooms joined by a doorway come back as one region — this is reachability, not true Sims-style room membership, where each side of a door still counts as its own room. It's not wired into gameplay yet; it's groundwork for a future room-quality/environment motive.
+
 ### Core simulation loop
 
 1. `SimClock` converts real elapsed time into sim-minutes at the current speed (paused/1x/2x/3x).
@@ -65,7 +71,8 @@ The household shares one `funds` balance (starting at §3,000), spent in Buy mod
 
 ### Current simplifications (good first-contribution targets)
 
-- **Walls occupy whole tiles** rather than living on tile edges like the original Sims wall system — simpler pathfinding/rendering, but no diagonal walls yet.
+- **Walls are still axis-aligned edges** — real edge walls now (not tile-filling), but no diagonal walls yet.
+- **Room detection is reachability, not room membership** — see the Walls section above; a doorway merges the two rooms it connects into one flood-fill region.
 - **Still no sprite art** — object/Sim detail is procedural vector drawing (`ObjectArt.ts`), not sprite sheets: soft blurred contact shadows, a two-layer "glow" fake instead of real gradients (PixiJS's `FillGradient` allocates a GPU texture per instance, which isn't safe to recreate every frame the way this scene redraws), and rounded/capsule Sim bodies instead of flat boxes. It reads much less "voxel game" than flat blocks, but real hand-drawn isometric sprites would still be a big visual upgrade, especially for Sims.
 - **No Sim creation flow** — new Sims spawn with a name/color from a fixed pool and a randomized personality; there's no UI to name them or hand-pick traits yet.
 - **Relationships are a single scalar** — no relationship types (friend/romantic/enemy), no memory of specific events, just one number that goes up when Sims chat.

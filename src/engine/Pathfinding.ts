@@ -30,18 +30,18 @@ function heuristic(ax: number, ay: number, bx: number, by: number): number {
 }
 
 /**
- * Finds a walkable path from start to goal on a grid.
- * `isWalkable(x, y)` should return false for blocked tiles / out of bounds.
- * Diagonal moves are only allowed when both orthogonal "corner" tiles are
- * also walkable, so paths never cut through wall corners.
+ * Finds a path from start to goal on a grid.
+ * `canMove(x1, y1, x2, y2)` should return whether a single step from
+ * (x1,y1) to the adjacent tile (x2,y2) is allowed — false for out-of-bounds,
+ * occupied, or wall-blocked moves. It's expected to handle its own diagonal
+ * corner-cutting rules (e.g. requiring both straight "legs" to be clear).
  */
 export function findPath(
   start: GridPoint,
   goal: GridPoint,
-  isWalkable: (x: number, y: number) => boolean,
+  canMove: (x1: number, y1: number, x2: number, y2: number) => boolean,
   maxIterations = 4000,
 ): GridPoint[] | null {
-  if (!isWalkable(goal.x, goal.y)) return null;
   if (start.x === goal.x && start.y === goal.y) return [];
 
   const open = new Map<string, Node>();
@@ -86,13 +86,7 @@ export function findPath(
       const ny = current.y + dy;
       const nk = key(nx, ny);
       if (closed.has(nk)) continue;
-      if (!isWalkable(nx, ny)) continue;
-      if (dx !== 0 && dy !== 0) {
-        // Prevent cutting diagonally across a blocked corner.
-        if (!isWalkable(current.x + dx, current.y) || !isWalkable(current.x, current.y + dy)) {
-          continue;
-        }
-      }
+      if (!canMove(current.x, current.y, nx, ny)) continue;
 
       const g = current.g + cost;
       const existing = open.get(nk);

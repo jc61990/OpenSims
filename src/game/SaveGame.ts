@@ -7,11 +7,17 @@ import { MOTIVE_TYPES, TRAIT_TYPES, type MotiveType, type TraitType } from "./ty
 
 const SAVE_KEY = "opensims:save:v1";
 
+// Bumped to 2 when walls moved from per-tile flags to edge arrays — an
+// incompatible format change, so an old v1 save is simply discarded (falls
+// back to the starter lot) rather than misread.
 export interface SaveData {
-  version: 1;
+  version: 2;
   lotWidth: number;
   lotHeight: number;
-  walls: boolean[];
+  /** Vertical edges, row-major: index = y*(lotWidth+1)+x, x in 0..lotWidth. */
+  vWalls: boolean[];
+  /** Horizontal edges, row-major: index = y*lotWidth+x, y in 0..lotHeight. */
+  hWalls: boolean[];
   floors: number[];
   objects: { type: string; x: number; y: number }[];
   sims: {
@@ -30,19 +36,24 @@ export interface SaveData {
 }
 
 export function serialize(lot: Lot, sims: Sim[], nextSimId: number, funds: number): SaveData {
-  const walls: boolean[] = [];
+  const vWalls: boolean[] = [];
+  for (let y = 0; y < lot.height; y++) {
+    for (let x = 0; x <= lot.width; x++) vWalls.push(lot.getVWall(x, y));
+  }
+  const hWalls: boolean[] = [];
+  for (let y = 0; y <= lot.height; y++) {
+    for (let x = 0; x < lot.width; x++) hWalls.push(lot.getHWall(x, y));
+  }
   const floors: number[] = [];
   for (let y = 0; y < lot.height; y++) {
-    for (let x = 0; x < lot.width; x++) {
-      walls.push(lot.hasWall(x, y));
-      floors.push(lot.getFloor(x, y));
-    }
+    for (let x = 0; x < lot.width; x++) floors.push(lot.getFloor(x, y));
   }
   return {
-    version: 1,
+    version: 2,
     lotWidth: lot.width,
     lotHeight: lot.height,
-    walls,
+    vWalls,
+    hWalls,
     floors,
     objects: lot.objects.map((o) => ({ type: o.type, x: o.gridX, y: o.gridY })),
     sims: sims.map((s) => ({
@@ -70,7 +81,7 @@ export function loadFromStorage(): SaveData | null {
   if (!raw) return null;
   try {
     const data = JSON.parse(raw) as SaveData;
-    if (data.version !== 1) return null;
+    if (data.version !== 2) return null;
     return data;
   } catch {
     return null;
@@ -84,9 +95,18 @@ export function clearStorage(): void {
 export function deserializeLot(data: SaveData): Lot {
   const lot = new Lot(data.lotWidth, data.lotHeight);
   for (let y = 0; y < data.lotHeight; y++) {
+    for (let x = 0; x <= data.lotWidth; x++) {
+      lot.setVWall(x, y, data.vWalls[y * (data.lotWidth + 1) + x]);
+    }
+  }
+  for (let y = 0; y <= data.lotHeight; y++) {
+    for (let x = 0; x < data.lotWidth; x++) {
+      lot.setHWall(x, y, data.hWalls[y * data.lotWidth + x]);
+    }
+  }
+  for (let y = 0; y < data.lotHeight; y++) {
     for (let x = 0; x < data.lotWidth; x++) {
       const i = y * data.lotWidth + x;
-      lot.setWall(x, y, data.walls[i]);
       if (data.floors?.[i] !== undefined) lot.setFloor(x, y, data.floors[i]);
     }
   }

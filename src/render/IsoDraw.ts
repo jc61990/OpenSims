@@ -30,8 +30,11 @@ export interface BlockFaces {
   center: ScreenPoint;
 }
 
-function faces(gx: number, gy: number, height: number): BlockFaces {
-  const [bn, be, bs, bw] = tileCorners(gx, gy);
+function facesFromCorners(
+  corners: [ScreenPoint, ScreenPoint, ScreenPoint, ScreenPoint],
+  height: number,
+): BlockFaces {
+  const [bn, be, bs, bw] = corners;
   const raise = (p: ScreenPoint) => ({ x: p.x, y: p.y - height });
   const tn = raise(bn);
   const te = raise(be);
@@ -57,17 +60,16 @@ function faces(gx: number, gy: number, height: number): BlockFaces {
  * of extra flat, low-alpha fills rather than a real gradient (PixiJS's FillGradient allocates a
  * GPU texture per instance, which would leak badly if recreated every frame like this scene is).
  */
-export function drawBlock(
+function drawFootprintBlock(
   g: Graphics,
-  gx: number,
-  gy: number,
+  corners: [ScreenPoint, ScreenPoint, ScreenPoint, ScreenPoint],
   height: number,
   topColor: number,
   leftColor: number,
   rightColor: number,
-  topGlow = true,
+  topGlow: boolean,
 ): BlockFaces {
-  const f = faces(gx, gy, height);
+  const f = facesFromCorners(corners, height);
   const leftPts = [f.bw, f.bs, f.ts, f.tw];
   const rightPts = [f.bs, f.be, f.te, f.ts];
   const topPts = [f.tn, f.te, f.ts, f.tw];
@@ -89,6 +91,82 @@ export function drawBlock(
   }
 
   return f;
+}
+
+/**
+ * Draws a solid box (two shaded side faces + a top face) filling a whole grid
+ * tile, and returns its corner points for decoration overlays.
+ */
+export function drawBlock(
+  g: Graphics,
+  gx: number,
+  gy: number,
+  height: number,
+  topColor: number,
+  leftColor: number,
+  rightColor: number,
+  topGlow = true,
+): BlockFaces {
+  return drawFootprintBlock(g, tileCorners(gx, gy), height, topColor, leftColor, rightColor, topGlow);
+}
+
+/**
+ * Draws a thin wall segment standing on the edge between grid points
+ * (ax,ay) and (bx,by) — e.g. (3,7) to (4,7) for the edge along the north
+ * side of tile (3,7). Reuses the same box-face geometry as drawBlock, just
+ * with a thin rectangular footprint centered on that edge instead of a
+ * whole-tile diamond.
+ */
+export function drawWallSegment(
+  g: Graphics,
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+  height: number,
+  topColor: number,
+  leftColor: number,
+  rightColor: number,
+  thickness = 5,
+): BlockFaces {
+  const a = gridToScreen(ax, ay);
+  const b = gridToScreen(bx, by);
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const len = Math.hypot(dx, dy) || 1;
+  const px = (-dy / len) * (thickness / 2);
+  const py = (dx / len) * (thickness / 2);
+  const corners: [ScreenPoint, ScreenPoint, ScreenPoint, ScreenPoint] = [
+    { x: a.x - px, y: a.y - py },
+    { x: b.x - px, y: b.y - py },
+    { x: b.x + px, y: b.y + py },
+    { x: a.x + px, y: a.y + py },
+  ];
+  return drawFootprintBlock(g, corners, height, topColor, leftColor, rightColor, false);
+}
+
+/**
+ * A small square post centered on grid vertex (gx,gy), used to fill the
+ * cosmetic gap where two or more thin wall segments meet at a corner.
+ */
+export function drawWallPost(
+  g: Graphics,
+  gx: number,
+  gy: number,
+  height: number,
+  topColor: number,
+  leftColor: number,
+  rightColor: number,
+  size = 3,
+): BlockFaces {
+  const c = gridToScreen(gx, gy);
+  const corners: [ScreenPoint, ScreenPoint, ScreenPoint, ScreenPoint] = [
+    { x: c.x, y: c.y - size },
+    { x: c.x + size, y: c.y },
+    { x: c.x, y: c.y + size },
+    { x: c.x - size, y: c.y },
+  ];
+  return drawFootprintBlock(g, corners, height, topColor, leftColor, rightColor, false);
 }
 
 /** Point at (u,v) across the top face parallelogram: u runs N->E, v runs N->W. */

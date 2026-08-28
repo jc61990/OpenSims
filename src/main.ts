@@ -34,18 +34,35 @@ function colorForId(id: number): number {
   return SIM_COLOR_POOL[(id - 1) % SIM_COLOR_POOL.length];
 }
 
-// A central north-south corridor (column 7, aligned with the perimeter
-// doorway) links four rooms: kitchen (top-left), living room (top-right),
-// bedroom (bottom-left), and bathroom (bottom-right). Each room also opens
-// directly onto the corridor since no wall separates them from it, and the
-// two horizontal partition walls each carry one extra doorway of their own.
+// Build mode toggles a wall on whichever of the clicked tile's 4 edges the
+// click landed closest to (fracX/fracY are the click's position within the
+// tile, 0-1 each): west/east from how far across, north/south from how far
+// down.
+function toggleNearestWall(lot: Lot, gx: number, gy: number, fracX: number, fracY: number): void {
+  if (!lot.inBounds(gx, gy)) return;
+  const distances: [() => void, number][] = [
+    [() => lot.setVWall(gx, gy, !lot.getVWall(gx, gy)), fracX],
+    [() => lot.setVWall(gx + 1, gy, !lot.getVWall(gx + 1, gy)), 1 - fracX],
+    [() => lot.setHWall(gx, gy, !lot.getHWall(gx, gy)), fracY],
+    [() => lot.setHWall(gx, gy + 1, !lot.getHWall(gx, gy + 1)), 1 - fracY],
+  ];
+  distances.sort((a, b) => a[1] - b[1]);
+  distances[0][0]();
+}
+
+// A single interior wall spans the full width at row-boundary 7, splitting
+// the lot into a top half (kitchen, living room) and bottom half (corridor,
+// bedroom, bathroom), with three doorway gaps. Real edge walls have zero
+// thickness, so every tile — including the ones the wall runs along — stays
+// usable floor; nothing is "consumed" by the wall the way a tile-filling
+// wall would.
 function createStarterLot(): Lot {
   const lot = new Lot(LOT_WIDTH, LOT_HEIGHT);
 
-  for (let x = 1; x <= 6; x++) lot.setWall(x, 7, true);
-  lot.setWall(3, 7, false);
-  for (let x = 8; x <= 13; x++) lot.setWall(x, 7, true);
-  lot.setWall(10, 7, false);
+  for (let x = 0; x < LOT_WIDTH; x++) lot.setHWall(x, 7, true);
+  lot.setHWall(3, 7, false);
+  lot.setHWall(7, 7, false);
+  lot.setHWall(10, 7, false);
 
   lot.setFloorRect(1, 1, 6, 6, 0x7a8f74); // kitchen: sage tile
   lot.setFloorRect(8, 1, 13, 6, 0x8a6a4a); // living room: warm wood
@@ -173,11 +190,9 @@ async function main(): Promise<void> {
   hud.renderSimTabs(sims, selectedSimId);
 
   await renderer.init(canvasHolder, lot, () => sims, {
-    onTileClick: (gx, gy) => {
+    onTileClick: (gx, gy, fracX, fracY) => {
       if (mode === "build") {
-        if (!lot.inBounds(gx, gy)) return;
-        if (lot.objectAt(gx, gy)) return;
-        lot.setWall(gx, gy, !lot.hasWall(gx, gy));
+        toggleNearestWall(lot, gx, gy, fracX, fracY);
       } else if (mode === "buy") {
         if (!activePaletteType) return;
         const def = OBJECT_CATALOG[activePaletteType];
@@ -193,7 +208,7 @@ async function main(): Promise<void> {
           hud.flashBuyStatus(`-${formatMoney(def.price)}`);
         }
       } else if (mode === "addsim") {
-        if (!lot.isWalkable(gx, gy)) return;
+        if (!lot.isWalkableTile(gx, gy)) return;
         const id = nextSimId++;
         const sim = new Sim(id, nameForId(id), colorForId(id), gx, gy, randomPersonality());
         sims.push(sim);

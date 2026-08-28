@@ -1,6 +1,6 @@
 import { Application, BlurFilter, Container, Graphics, Text, TextStyle } from "pixi.js";
 import { gridToScreen, screenToGrid } from "../engine/IsoMath.ts";
-import { tileCorners, drawBlock, shade } from "./IsoDraw.ts";
+import { tileCorners, drawWallSegment, drawWallPost, shade } from "./IsoDraw.ts";
 import { drawObject } from "./ObjectArt.ts";
 import type { Lot } from "../game/Lot.ts";
 import type { Sim } from "../game/Sim.ts";
@@ -17,7 +17,8 @@ interface Drawable {
 }
 
 export interface RendererCallbacks {
-  onTileClick?: (gx: number, gy: number) => void;
+  /** fracX/fracY are the click's position within the tile (0-1 each), for edge-targeting in Build mode. */
+  onTileClick?: (gx: number, gy: number, fracX: number, fracY: number) => void;
   onSimClick?: (simId: number) => void;
 }
 
@@ -156,7 +157,7 @@ export class IsoRenderer {
     const gp = screenToGrid(worldX, worldY);
     const gx = Math.floor(gp.x);
     const gy = Math.floor(gp.y);
-    this.callbacks.onTileClick?.(gx, gy);
+    this.callbacks.onTileClick?.(gx, gy, gp.x - gx, gp.y - gy);
   }
 
   private render(): void {
@@ -174,11 +175,36 @@ export class IsoRenderer {
     const items: Drawable[] = [];
 
     for (let y = 0; y < this.lot.height; y++) {
+      for (let x = 0; x <= this.lot.width; x++) {
+        if (this.lot.getVWall(x, y)) {
+          items.push({
+            depth: x + y + 0.5,
+            draw: (g) => drawWallSegment(g, x, y, x, y + 1, WALL_HEIGHT, WALL_TOP, WALL_LEFT, WALL_RIGHT),
+          });
+        }
+      }
+    }
+    for (let y = 0; y <= this.lot.height; y++) {
       for (let x = 0; x < this.lot.width; x++) {
-        if (this.lot.hasWall(x, y)) {
+        if (this.lot.getHWall(x, y)) {
+          items.push({
+            depth: x + y + 0.5,
+            draw: (g) => drawWallSegment(g, x, y, x + 1, y, WALL_HEIGHT, WALL_TOP, WALL_LEFT, WALL_RIGHT),
+          });
+        }
+      }
+    }
+    for (let y = 0; y <= this.lot.height; y++) {
+      for (let x = 0; x <= this.lot.width; x++) {
+        const hasWall =
+          this.lot.getVWall(x, y - 1) ||
+          this.lot.getVWall(x, y) ||
+          this.lot.getHWall(x - 1, y) ||
+          this.lot.getHWall(x, y);
+        if (hasWall) {
           items.push({
             depth: x + y,
-            draw: (g) => drawBlock(g, x, y, WALL_HEIGHT, WALL_TOP, WALL_LEFT, WALL_RIGHT, false),
+            draw: (g) => drawWallPost(g, x, y, WALL_HEIGHT, WALL_TOP, WALL_LEFT, WALL_RIGHT),
           });
         }
       }
@@ -207,7 +233,6 @@ export class IsoRenderer {
   private drawFloors(): void {
     for (let y = 0; y < this.lot.height; y++) {
       for (let x = 0; x < this.lot.width; x++) {
-        if (this.lot.hasWall(x, y)) continue;
         const [n, e, s, w] = tileCorners(x, y);
         const base = this.lot.getFloor(x, y);
         const color = (x + y) % 2 === 0 ? base : shade(base, 0.92);

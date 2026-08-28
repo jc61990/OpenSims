@@ -57,7 +57,7 @@ function tryUseObject(sim: Sim, motive: MotiveType, lot: Lot): void {
     if (!obj.isFree()) continue;
     if (!obj.interactions.some((i) => i.motive === motive)) continue;
     const spot = obj.standSpot;
-    if (!lot.isWalkable(spot.x, spot.y)) continue;
+    if (!lot.isWalkableTile(spot.x, spot.y)) continue;
     const d = distance(sim.x, sim.y, spot.x, spot.y);
     if (d < bestDist) {
       bestDist = d;
@@ -83,7 +83,7 @@ function findAdjacentWalkable(lot: Lot, cx: number, cy: number, fromX: number, f
       if (dx === 0 && dy === 0) continue;
       const x = cx + dx;
       const y = cy + dy;
-      if (!lot.isWalkable(x, y)) continue;
+      if (!lot.isWalkableTile(x, y)) continue;
       const d = distance(fromX, fromY, x, y);
       if (d < bestDist) {
         bestDist = d;
