@@ -1,10 +1,24 @@
-import { MOTIVE_LABELS, MOTIVE_TYPES, TRAIT_LABELS, TRAIT_TYPES, type MotiveType, type TraitType } from "../game/types.ts";
+import {
+  MOTIVE_LABELS,
+  MOTIVE_TYPES,
+  SIM_COLOR_POOL,
+  TRAIT_LABELS,
+  TRAIT_TYPES,
+  type MotiveType,
+  type TraitType,
+} from "../game/types.ts";
 import { OBJECT_CATALOG } from "../game/ObjectCatalog.ts";
 import { JOB_CATALOG } from "../game/Job.ts";
 import { formatMinuteOfDay, type SimSpeed } from "../engine/Clock.ts";
 import type { Sim } from "../game/Sim.ts";
 
 export type Mode = "live" | "build" | "buy" | "addsim";
+
+export interface NewSimData {
+  name: string;
+  color: number;
+  personality: Partial<Record<TraitType, number>>;
+}
 
 export interface HUDCallbacks {
   onSpeedChange: (speed: SimSpeed) => void;
@@ -15,6 +29,8 @@ export interface HUDCallbacks {
   onSave: () => void;
   onResetSave: () => void;
   onSetJob: (jobId: string | null) => void;
+  /** Fired once the Create Sim modal is submitted; placement mode arms right after. */
+  onCreateSim: (data: NewSimData) => void;
 }
 
 function motiveColor(value: number): string {
@@ -48,6 +64,11 @@ export class HUD {
   private activePalette: string | null = null;
   private saveStatusEl!: HTMLElement;
   private saveStatusTimer: ReturnType<typeof setTimeout> | null = null;
+  private modalOverlay!: HTMLElement;
+  private nameInput!: HTMLInputElement;
+  private colorSwatches: HTMLElement[] = [];
+  private selectedColor = SIM_COLOR_POOL[0];
+  private traitSliders = {} as Record<TraitType, HTMLInputElement>;
 
   constructor(root: HTMLElement, callbacks: HUDCallbacks) {
     this.root = root;
@@ -162,7 +183,10 @@ export class HUD {
       const btn = document.createElement("button");
       btn.className = "mode-btn";
       btn.textContent = label;
-      btn.onclick = () => this.callbacks.onModeChange(mode);
+      btn.onclick = () => {
+        if (mode === "addsim") this.openCreateSimModal();
+        else this.callbacks.onModeChange(mode);
+      };
       modeRow.appendChild(btn);
       this.modeButtons[mode] = btn;
     }
@@ -217,6 +241,117 @@ export class HUD {
     hud.appendChild(controlsPanel);
     hud.appendChild(palettePanel);
     this.root.appendChild(hud);
+
+    this.buildCreateSimModal();
+  }
+
+  private buildCreateSimModal(): void {
+    const overlay = document.createElement("div");
+    overlay.className = "modal-overlay";
+    overlay.style.display = "none";
+    this.modalOverlay = overlay;
+
+    const modal = document.createElement("div");
+    modal.className = "panel modal-panel";
+
+    const title = document.createElement("h3");
+    title.textContent = "Create a Sim";
+    modal.appendChild(title);
+
+    const nameLabel = document.createElement("div");
+    nameLabel.className = "section-heading";
+    nameLabel.textContent = "Name";
+    modal.appendChild(nameLabel);
+    this.nameInput = document.createElement("input");
+    this.nameInput.type = "text";
+    this.nameInput.className = "modal-input";
+    this.nameInput.placeholder = "Sim name";
+    this.nameInput.maxLength = 24;
+    modal.appendChild(this.nameInput);
+
+    const colorLabel = document.createElement("div");
+    colorLabel.className = "section-heading";
+    colorLabel.textContent = "Color";
+    modal.appendChild(colorLabel);
+    const swatchRow = document.createElement("div");
+    swatchRow.className = "swatch-row";
+    for (const color of SIM_COLOR_POOL) {
+      const swatch = document.createElement("div");
+      swatch.className = "color-swatch";
+      swatch.style.background = `#${color.toString(16).padStart(6, "0")}`;
+      swatch.dataset.color = String(color);
+      swatch.onclick = () => {
+        this.selectedColor = color;
+        this.refreshSwatches();
+      };
+      swatchRow.appendChild(swatch);
+      this.colorSwatches.push(swatch);
+    }
+    modal.appendChild(swatchRow);
+
+    const traitsLabel = document.createElement("div");
+    traitsLabel.className = "section-heading";
+    traitsLabel.textContent = "Personality";
+    modal.appendChild(traitsLabel);
+    for (const t of TRAIT_TYPES) {
+      const row = document.createElement("div");
+      row.className = "slider-row";
+      const label = document.createElement("span");
+      label.className = "motive-label";
+      label.textContent = TRAIT_LABELS[t];
+      const slider = document.createElement("input");
+      slider.type = "range";
+      slider.min = "0";
+      slider.max = "10";
+      slider.value = "5";
+      slider.className = "trait-slider";
+      row.appendChild(label);
+      row.appendChild(slider);
+      modal.appendChild(row);
+      this.traitSliders[t] = slider;
+    }
+
+    const buttonRow = document.createElement("div");
+    buttonRow.className = "mode-controls modal-buttons";
+    const cancelBtn = document.createElement("button");
+    cancelBtn.className = "mode-btn";
+    cancelBtn.textContent = "Cancel";
+    cancelBtn.onclick = () => this.closeCreateSimModal();
+    const createBtn = document.createElement("button");
+    createBtn.className = "mode-btn primary";
+    createBtn.textContent = "Create & Place";
+    createBtn.onclick = () => {
+      const personality: Partial<Record<TraitType, number>> = {};
+      for (const t of TRAIT_TYPES) personality[t] = Number(this.traitSliders[t].value);
+      const name = this.nameInput.value.trim() || "New Sim";
+      this.callbacks.onCreateSim({ name, color: this.selectedColor, personality });
+      this.closeCreateSimModal();
+    };
+    buttonRow.appendChild(cancelBtn);
+    buttonRow.appendChild(createBtn);
+    modal.appendChild(buttonRow);
+
+    overlay.appendChild(modal);
+    this.root.appendChild(overlay);
+  }
+
+  private refreshSwatches(): void {
+    for (const swatch of this.colorSwatches) {
+      swatch.classList.toggle("selected", Number(swatch.dataset.color) === this.selectedColor);
+    }
+  }
+
+  private openCreateSimModal(): void {
+    this.nameInput.value = "";
+    this.selectedColor = SIM_COLOR_POOL[Math.floor(Math.random() * SIM_COLOR_POOL.length)];
+    this.refreshSwatches();
+    for (const t of TRAIT_TYPES) this.traitSliders[t].value = "5";
+    this.modalOverlay.style.display = "flex";
+    this.nameInput.focus();
+  }
+
+  private closeCreateSimModal(): void {
+    this.modalOverlay.style.display = "none";
   }
 
   private buildCareerButtons(): void {

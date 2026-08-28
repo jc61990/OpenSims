@@ -27,7 +27,7 @@ npm run typecheck
 - **Live mode**: click a Sim to select them and watch their motives in the bottom-left panel
 - **Buy mode**: pick an object from the palette, then click a floor tile to place it
 - **Walls mode**: click near an edge of a tile to toggle a wall on that edge — walls live on tile boundaries, so a click is matched to whichever of the tile's 4 edges it landed closest to
-- **+ Sim mode**: click an open floor tile to add a new Sim to the household; **Remove** in the Sim panel deletes the selected one
+- **+ Sim mode**: opens a Create Sim modal (name, color, and the five personality trait sliders) — submitting it arms placement, then click an open floor tile to add them to the household; **Remove** in the Sim panel deletes the selected one
 - Speed controls (`II`, `1x`, `2x`, `3x`) control simulation speed, matching the classic pause/play/fast-forward keys
 - **Save** writes the lot and Sims to `localStorage`; **Reset** discards the save and reloads the starter lot
 - The **Career** section in the Sim panel assigns a job; the Sim automatically leaves for their shift and comes home with a paycheck
@@ -74,7 +74,7 @@ The household shares one `funds` balance (starting at §3,000), spent in Buy mod
 - **Walls are still axis-aligned edges** — real edge walls now (not tile-filling), but no diagonal walls yet.
 - **Room detection is reachability, not room membership** — see the Walls section above; a doorway merges the two rooms it connects into one flood-fill region.
 - **Still no sprite art** — object/Sim detail is procedural vector drawing (`ObjectArt.ts`), not sprite sheets: soft blurred contact shadows, a two-layer "glow" fake instead of real gradients (PixiJS's `FillGradient` allocates a GPU texture per instance, which isn't safe to recreate every frame the way this scene redraws), and rounded/capsule Sim bodies instead of flat boxes. It reads much less "voxel game" than flat blocks, but real hand-drawn isometric sprites would still be a big visual upgrade, especially for Sims.
-- **No Sim creation flow** — new Sims spawn with a name/color from a fixed pool and a randomized personality; there's no UI to name them or hand-pick traits yet.
+- **No mid-life customization** — the Create Sim modal covers name/color/personality up front, but there's no way to rename a Sim or edit their traits after they're already placed.
 - **Relationships are a single scalar** — no relationship types (friend/romantic/enemy), no memory of specific events, just one number that goes up when Sims chat.
 - **A single flat save slot** — one `localStorage` key, no named saves or multiple households.
 - **No multi-lot / neighborhood view** — one lot, no traveling between lots.

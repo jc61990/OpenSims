@@ -8,7 +8,8 @@ import { updateAI } from "./game/AI.ts";
 import { updateJobs } from "./game/Jobs.ts";
 import { SimClock } from "./engine/Clock.ts";
 import { IsoRenderer } from "./render/IsoRenderer.ts";
-import { HUD, formatMoney, type Mode } from "./ui/HUD.ts";
+import { HUD, formatMoney, type Mode, type NewSimData } from "./ui/HUD.ts";
+import { SIM_COLOR_POOL } from "./game/types.ts";
 import {
   loadFromStorage,
   saveToStorage,
@@ -22,7 +23,6 @@ const LOT_HEIGHT = 14;
 const STARTING_FUNDS = 3000;
 
 const SIM_NAME_POOL = ["Bella", "Mortimer", "Cassandra", "Michael", "Dudley", "Kaylynn", "Bob", "Ivy"];
-const SIM_COLOR_POOL = [0x4a7bd6, 0xd64a7b, 0x4ad67f, 0xd6a54a, 0x9a6ac2, 0x4ad6d0];
 
 function nameForId(id: number): string {
   const base = SIM_NAME_POOL[(id - 1) % SIM_NAME_POOL.length];
@@ -129,6 +129,7 @@ async function main(): Promise<void> {
   let selectedSimId: number | null = sims[0]?.id ?? null;
   let mode: Mode = "live";
   let activePaletteType: string | null = null;
+  let pendingNewSim: NewSimData | null = null;
 
   const clock = new SimClock();
   const renderer = new IsoRenderer();
@@ -182,6 +183,10 @@ async function main(): Promise<void> {
       sim.jobId = jobId;
       hud.renderSim(sim, sims);
     },
+    onCreateSim: (data) => {
+      pendingNewSim = data;
+      setMode("addsim");
+    },
   });
 
   hud.setMode(mode);
@@ -210,7 +215,10 @@ async function main(): Promise<void> {
       } else if (mode === "addsim") {
         if (!lot.isWalkableTile(gx, gy)) return;
         const id = nextSimId++;
-        const sim = new Sim(id, nameForId(id), colorForId(id), gx, gy, randomPersonality());
+        const sim = pendingNewSim
+          ? new Sim(id, pendingNewSim.name, pendingNewSim.color, gx, gy, new Personality(pendingNewSim.personality))
+          : new Sim(id, nameForId(id), colorForId(id), gx, gy, randomPersonality());
+        pendingNewSim = null;
         sims.push(sim);
         selectedSimId = sim.id;
         renderer.selectedSimId = sim.id;

@@ -54,3 +54,6 @@ export const TRAIT_FOR_MOTIVE: Partial<Record<MotiveType, TraitType>> = {
   social: "outgoing",
   hygiene: "neat",
 };
+
+/** Shared palette for auto-assigned and player-picked Sim colors. */
+export const SIM_COLOR_POOL = [0x4a7bd6, 0xd64a7b, 0x4ad67f, 0xd6a54a, 0x9a6ac2, 0x4ad6d0];
