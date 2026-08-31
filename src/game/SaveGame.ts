@@ -18,6 +18,9 @@ export interface SaveData {
   vWalls: boolean[];
   /** Horizontal edges, row-major: index = y*lotWidth+x, y in 0..lotHeight. */
   hWalls: boolean[];
+  /** Same indexing as vWalls/hWalls. Optional: older v2 saves predate doors. */
+  vDoors?: boolean[];
+  hDoors?: boolean[];
   floors: number[];
   objects: { type: string; x: number; y: number }[];
   sims: {
@@ -46,6 +49,14 @@ export function serialize(lot: Lot, sims: Sim[], nextSimId: number, funds: numbe
   for (let y = 0; y <= lot.height; y++) {
     for (let x = 0; x < lot.width; x++) hWalls.push(lot.getHWall(x, y));
   }
+  const vDoors: boolean[] = [];
+  for (let y = 0; y < lot.height; y++) {
+    for (let x = 0; x <= lot.width; x++) vDoors.push(lot.getVDoor(x, y));
+  }
+  const hDoors: boolean[] = [];
+  for (let y = 0; y <= lot.height; y++) {
+    for (let x = 0; x < lot.width; x++) hDoors.push(lot.getHDoor(x, y));
+  }
   const floors: number[] = [];
   for (let y = 0; y < lot.height; y++) {
     for (let x = 0; x < lot.width; x++) floors.push(lot.getFloor(x, y));
@@ -56,6 +67,8 @@ export function serialize(lot: Lot, sims: Sim[], nextSimId: number, funds: numbe
     lotHeight: lot.height,
     vWalls,
     hWalls,
+    vDoors,
+    hDoors,
     floors,
     objects: lot.objects.map((o) => ({ type: o.type, x: o.gridX, y: o.gridY })),
     sims: sims.map((s) => ({
@@ -106,6 +119,17 @@ export function deserializeLot(data: SaveData): Lot {
   for (let y = 0; y <= data.lotHeight; y++) {
     for (let x = 0; x < data.lotWidth; x++) {
       lot.setHWall(x, y, data.hWalls[y * data.lotWidth + x]);
+    }
+  }
+  // Doors are optional: an older v2 save predating them just has none.
+  for (let y = 0; y < data.lotHeight; y++) {
+    for (let x = 0; x <= data.lotWidth; x++) {
+      lot.setVDoor(x, y, data.vDoors?.[y * (data.lotWidth + 1) + x] ?? false);
+    }
+  }
+  for (let y = 0; y <= data.lotHeight; y++) {
+    for (let x = 0; x < data.lotWidth; x++) {
+      lot.setHDoor(x, y, data.hDoors?.[y * data.lotWidth + x] ?? false);
     }
   }
   for (let y = 0; y < data.lotHeight; y++) {

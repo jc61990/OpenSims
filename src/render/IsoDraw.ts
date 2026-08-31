@@ -146,6 +146,54 @@ export function drawWallSegment(
 }
 
 /**
+ * Draws a doorway on the edge between (ax,ay) and (bx,by): two short jamb
+ * posts at the ends plus a header spanning the full opening near the top,
+ * leaving a Sim-height gap open underneath so the frame reads as passable
+ * at a glance, unlike a solid drawWallSegment. Reuses the same box-face
+ * geometry, just building each piece from a shifted/shortened footprint.
+ */
+export function drawDoorway(
+  g: Graphics,
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+  height: number,
+  topColor: number,
+  leftColor: number,
+  rightColor: number,
+  thickness = 5,
+): void {
+  const a = gridToScreen(ax, ay);
+  const b = gridToScreen(bx, by);
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const len = Math.hypot(dx, dy) || 1;
+  const px = (-dy / len) * (thickness / 2);
+  const py = (dx / len) * (thickness / 2);
+
+  const segment = (p0: ScreenPoint, p1: ScreenPoint): [ScreenPoint, ScreenPoint, ScreenPoint, ScreenPoint] => [
+    { x: p0.x - px, y: p0.y - py },
+    { x: p1.x - px, y: p1.y - py },
+    { x: p1.x + px, y: p1.y + py },
+    { x: p0.x + px, y: p0.y + py },
+  ];
+
+  const jambFrac = 0.22;
+  const jambEnd1 = { x: a.x + dx * jambFrac, y: a.y + dy * jambFrac };
+  const jambEnd2 = { x: b.x - dx * jambFrac, y: b.y - dy * jambFrac };
+  drawFootprintBlock(g, segment(a, jambEnd1), height, topColor, leftColor, rightColor, false);
+  drawFootprintBlock(g, segment(jambEnd2, b), height, topColor, leftColor, rightColor, false);
+
+  // Header/lintel: a shortened box lifted to just the top slice of the
+  // opening, spanning its full width — nothing is drawn below it.
+  const headerHeight = height * 0.22;
+  const lift = height - headerHeight;
+  const raise = (p: ScreenPoint) => ({ x: p.x, y: p.y - lift });
+  drawFootprintBlock(g, segment(raise(a), raise(b)), headerHeight, topColor, leftColor, rightColor, false);
+}
+
+/**
  * A small square post centered on grid vertex (gx,gy), used to fill the
  * cosmetic gap where two or more thin wall segments meet at a corner.
  */

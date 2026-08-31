@@ -26,6 +26,14 @@ export class Lot {
   private tiles: Tile[];
   private vWalls: boolean[];
   private hWalls: boolean[];
+  // Doors: a distinct edge state from a plain wall-less gap. Both are
+  // passable, but a door still counts as a room boundary for getRoomTiles —
+  // matching Sims-style room membership, where each side of a doorway is
+  // its own room, instead of the plain-gap case where a missing wall just
+  // merges two regions into one. Only meaningful where the corresponding
+  // vWalls/hWalls entry is false; see hasDoorBetween.
+  private vDoors: boolean[];
+  private hDoors: boolean[];
   readonly objects: GameObject[] = [];
 
   constructor(width: number, height: number) {
@@ -34,6 +42,8 @@ export class Lot {
     this.tiles = new Array(width * height).fill(null).map(() => ({ floor: DEFAULT_FLOOR_COLOR }));
     this.vWalls = new Array((width + 1) * height).fill(false);
     this.hWalls = new Array(width * (height + 1)).fill(false);
+    this.vDoors = new Array((width + 1) * height).fill(false);
+    this.hDoors = new Array(width * (height + 1)).fill(false);
     this.buildPerimeterWalls();
   }
 
@@ -97,6 +107,41 @@ export class Lot {
     if (dx === 0 && dy === 1) return this.getHWall(x1, y1 + 1);
     if (dx === 0 && dy === -1) return this.getHWall(x1, y1);
     return true; // not orthogonally adjacent
+  }
+
+  // --- Doors ---
+
+  /** The vertical edge at boundary column `x` (between tile columns x-1 and x), row `y`. */
+  getVDoor(x: number, y: number): boolean {
+    if (x < 0 || x > this.width || y < 0 || y >= this.height) return false;
+    return this.vDoors[y * (this.width + 1) + x];
+  }
+
+  setVDoor(x: number, y: number, door: boolean): void {
+    if (x < 0 || x > this.width || y < 0 || y >= this.height) return;
+    this.vDoors[y * (this.width + 1) + x] = door;
+  }
+
+  /** The horizontal edge at boundary row `y` (between tile rows y-1 and y), column `x`. */
+  getHDoor(x: number, y: number): boolean {
+    if (x < 0 || x >= this.width || y < 0 || y > this.height) return false;
+    return this.hDoors[y * this.width + x];
+  }
+
+  setHDoor(x: number, y: number, door: boolean): void {
+    if (x < 0 || x >= this.width || y < 0 || y > this.height) return;
+    this.hDoors[y * this.width + x] = door;
+  }
+
+  /** Whether there's a door on the shared edge between two orthogonally adjacent tiles. */
+  hasDoorBetween(x1: number, y1: number, x2: number, y2: number): boolean {
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    if (dx === 1 && dy === 0) return this.getVDoor(x1 + 1, y1);
+    if (dx === -1 && dy === 0) return this.getVDoor(x1, y1);
+    if (dx === 0 && dy === 1) return this.getHDoor(x1, y1 + 1);
+    if (dx === 0 && dy === -1) return this.getHDoor(x1, y1);
+    return false; // not orthogonally adjacent
   }
 
   // --- Floors ---
@@ -163,11 +208,12 @@ export class Lot {
 
   /**
    * Flood-fills the connected region containing (x,y): all tiles reachable
-   * without crossing a *present* wall edge, ignoring furniture/Sims. A
-   * doorway gap is just an absent edge like open floor, so two rooms joined
-   * by a doorway come back as one region — this is reachability, not true
-   * Sims-style room membership (where each side of a door is still counted
-   * as its own room). Used by computeRoomScore below.
+   * without crossing a *present* wall or door edge, ignoring furniture/Sims.
+   * A door is passable (see hasDoorBetween/canMove) but still bounds a room,
+   * matching Sims-style room membership where each side of a doorway is its
+   * own room. A plain wall-less gap with no door placed is just open floor,
+   * though, and merges the regions on either side of it into one — that's
+   * reachability rather than a real room boundary. Used by computeRoomScore.
    */
   getRoomTiles(x: number, y: number): { x: number; y: number }[] {
     if (!this.inBounds(x, y)) return [];
@@ -189,6 +235,7 @@ export class Lot {
         const ny = cur.y + dy;
         if (!this.inBounds(nx, ny)) continue;
         if (this.hasWallBetween(cur.x, cur.y, nx, ny)) continue;
+        if (this.hasDoorBetween(cur.x, cur.y, nx, ny)) continue;
         const k = key(nx, ny);
         if (seen.has(k)) continue;
         seen.add(k);

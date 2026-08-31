@@ -12,7 +12,7 @@ import { CAREER_TRACKS } from "../game/Job.ts";
 import { formatMinuteOfDay, type SimSpeed } from "../engine/Clock.ts";
 import type { Sim } from "../game/Sim.ts";
 
-export type Mode = "live" | "build" | "buy" | "addsim";
+export type Mode = "live" | "build" | "doors" | "buy" | "addsim";
 
 export interface NewSimData {
   name: string;
@@ -58,7 +58,7 @@ export class HUD {
   private speedButtons = {} as Record<SimSpeed, HTMLButtonElement>;
   private modeButtons = {} as Record<Mode, HTMLButtonElement>;
   private static readonly ALL_SPEEDS: SimSpeed[] = [0, 1, 2, 3];
-  private static readonly ALL_MODES: Mode[] = ["live", "buy", "build", "addsim"];
+  private static readonly ALL_MODES: Mode[] = ["live", "buy", "build", "doors", "addsim"];
   private paletteEl!: HTMLElement;
   private callbacks: HUDCallbacks;
   private activePalette: string | null = null;
@@ -201,6 +201,7 @@ export class HUD {
       { mode: "live", label: "Live" },
       { mode: "buy", label: "Buy" },
       { mode: "build", label: "Walls" },
+      { mode: "doors", label: "Doors" },
       { mode: "addsim", label: "+ Sim" },
     ];
     for (const { mode, label } of modeDefs) {

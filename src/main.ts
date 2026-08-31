@@ -50,19 +50,80 @@ function toggleNearestWall(lot: Lot, gx: number, gy: number, fracX: number, frac
   distances[0][0]();
 }
 
+// Doors mode: same nearest-edge targeting as Walls mode, but toggles an
+// edge between a solid wall and a passable-but-room-separating door instead
+// of between wall and open air. A door can only be placed where a wall
+// already stands (and clicking a standing door puts the wall back) — an
+// edge with neither is left alone, since a door needs a frame to hang in.
+function toggleNearestDoor(lot: Lot, gx: number, gy: number, fracX: number, fracY: number): void {
+  if (!lot.inBounds(gx, gy)) return;
+  const edges: [
+    { hasWall: () => boolean; hasDoor: () => boolean; setWall: (v: boolean) => void; setDoor: (v: boolean) => void },
+    number,
+  ][] = [
+    [
+      {
+        hasWall: () => lot.getVWall(gx, gy),
+        hasDoor: () => lot.getVDoor(gx, gy),
+        setWall: (v) => lot.setVWall(gx, gy, v),
+        setDoor: (v) => lot.setVDoor(gx, gy, v),
+      },
+      fracX,
+    ],
+    [
+      {
+        hasWall: () => lot.getVWall(gx + 1, gy),
+        hasDoor: () => lot.getVDoor(gx + 1, gy),
+        setWall: (v) => lot.setVWall(gx + 1, gy, v),
+        setDoor: (v) => lot.setVDoor(gx + 1, gy, v),
+      },
+      1 - fracX,
+    ],
+    [
+      {
+        hasWall: () => lot.getHWall(gx, gy),
+        hasDoor: () => lot.getHDoor(gx, gy),
+        setWall: (v) => lot.setHWall(gx, gy, v),
+        setDoor: (v) => lot.setHDoor(gx, gy, v),
+      },
+      fracY,
+    ],
+    [
+      {
+        hasWall: () => lot.getHWall(gx, gy + 1),
+        hasDoor: () => lot.getHDoor(gx, gy + 1),
+        setWall: (v) => lot.setHWall(gx, gy + 1, v),
+        setDoor: (v) => lot.setHDoor(gx, gy + 1, v),
+      },
+      1 - fracY,
+    ],
+  ];
+  edges.sort((a, b) => a[1] - b[1]);
+  const edge = edges[0][0];
+  if (edge.hasWall()) {
+    edge.setWall(false);
+    edge.setDoor(true);
+  } else if (edge.hasDoor()) {
+    edge.setDoor(false);
+    edge.setWall(true);
+  }
+}
+
 // A single interior wall spans the full width at row-boundary 7, splitting
 // the lot into a top half (kitchen, living room) and bottom half (corridor,
-// bedroom, bathroom), with three doorway gaps. Real edge walls have zero
+// bedroom, bathroom), with three doorways. Real edge walls have zero
 // thickness, so every tile — including the ones the wall runs along — stays
 // usable floor; nothing is "consumed" by the wall the way a tile-filling
-// wall would.
+// wall would. The three openings are real doors (not just missing wall
+// segments), so each side still scores as its own room.
 function createStarterLot(): Lot {
   const lot = new Lot(LOT_WIDTH, LOT_HEIGHT);
 
   for (let x = 0; x < LOT_WIDTH; x++) lot.setHWall(x, 7, true);
-  lot.setHWall(3, 7, false);
-  lot.setHWall(7, 7, false);
-  lot.setHWall(10, 7, false);
+  for (const doorX of [3, 7, 10]) {
+    lot.setHWall(doorX, 7, false);
+    lot.setHDoor(doorX, 7, true);
+  }
 
   lot.setFloorRect(1, 1, 6, 6, 0x7a8f74); // kitchen: sage tile
   lot.setFloorRect(8, 1, 13, 6, 0x8a6a4a); // living room: warm wood
@@ -198,6 +259,8 @@ async function main(): Promise<void> {
     onTileClick: (gx, gy, fracX, fracY) => {
       if (mode === "build") {
         toggleNearestWall(lot, gx, gy, fracX, fracY);
+      } else if (mode === "doors") {
+        toggleNearestDoor(lot, gx, gy, fracX, fracY);
       } else if (mode === "buy") {
         if (!activePaletteType) return;
         const def = OBJECT_CATALOG[activePaletteType];

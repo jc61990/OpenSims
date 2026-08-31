@@ -1,6 +1,6 @@
 import { Application, BlurFilter, Container, Graphics, Text, TextStyle } from "pixi.js";
 import { gridToScreen, screenToGrid } from "../engine/IsoMath.ts";
-import { tileCorners, drawWallSegment, drawWallPost, shade } from "./IsoDraw.ts";
+import { tileCorners, drawWallSegment, drawWallPost, drawDoorway, shade } from "./IsoDraw.ts";
 import { drawObject } from "./ObjectArt.ts";
 import type { Lot } from "../game/Lot.ts";
 import type { Sim } from "../game/Sim.ts";
@@ -181,6 +181,11 @@ export class IsoRenderer {
             depth: x + y + 0.5,
             draw: (g) => drawWallSegment(g, x, y, x, y + 1, WALL_HEIGHT, WALL_TOP, WALL_LEFT, WALL_RIGHT),
           });
+        } else if (this.lot.getVDoor(x, y)) {
+          items.push({
+            depth: x + y + 0.5,
+            draw: (g) => drawDoorway(g, x, y, x, y + 1, WALL_HEIGHT, WALL_TOP, WALL_LEFT, WALL_RIGHT),
+          });
         }
       }
     }
@@ -191,6 +196,11 @@ export class IsoRenderer {
             depth: x + y + 0.5,
             draw: (g) => drawWallSegment(g, x, y, x + 1, y, WALL_HEIGHT, WALL_TOP, WALL_LEFT, WALL_RIGHT),
           });
+        } else if (this.lot.getHDoor(x, y)) {
+          items.push({
+            depth: x + y + 0.5,
+            draw: (g) => drawDoorway(g, x, y, x + 1, y, WALL_HEIGHT, WALL_TOP, WALL_LEFT, WALL_RIGHT),
+          });
         }
       }
     }
@@ -200,7 +210,11 @@ export class IsoRenderer {
           this.lot.getVWall(x, y - 1) ||
           this.lot.getVWall(x, y) ||
           this.lot.getHWall(x - 1, y) ||
-          this.lot.getHWall(x, y);
+          this.lot.getHWall(x, y) ||
+          this.lot.getVDoor(x, y - 1) ||
+          this.lot.getVDoor(x, y) ||
+          this.lot.getHDoor(x - 1, y) ||
+          this.lot.getHDoor(x, y);
         if (hasWall) {
           items.push({
             depth: x + y,
