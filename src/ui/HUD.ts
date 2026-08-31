@@ -399,7 +399,16 @@ export class HUD {
   }
 
   flashPromotion(simName: string, newTitle: string): void {
-    this.promotionToastEl.textContent = `🎉 ${simName} was promoted to ${newTitle}!`;
+    this.flashToast(`🎉 ${simName} was promoted to ${newTitle}!`, "good");
+  }
+
+  flashFired(simName: string, jobTitle: string): void {
+    this.flashToast(`😞 ${simName} was fired from ${jobTitle}!`, "bad");
+  }
+
+  private flashToast(text: string, variant: "good" | "bad"): void {
+    this.promotionToastEl.textContent = text;
+    this.promotionToastEl.classList.toggle("toast-bad", variant === "bad");
     this.promotionToastEl.style.display = "block";
     if (this.promotionToastTimer) clearTimeout(this.promotionToastTimer);
     this.promotionToastTimer = setTimeout(() => {

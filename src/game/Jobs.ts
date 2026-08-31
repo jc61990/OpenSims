@@ -9,7 +9,14 @@ import type { MotiveType } from "./types.ts";
 // the way careerId/careerLevel/promotionProgress are.
 const departurePerformance = new Map<number, number>();
 
+// How many consecutive bad-performance workdays a Sim has strung together.
+// Same non-persisted bookkeeping as departurePerformance above: a short-term
+// streak, not progression worth surviving a reload for.
+const badStreak = new Map<number, number>();
+
 const PERFORMANCE_MOTIVES: MotiveType[] = ["hunger", "energy", "hygiene", "fun"];
+const FIRING_PERFORMANCE_THRESHOLD = 25;
+const FIRING_STREAK_LIMIT = 2;
 
 /** 0-100: how ready a Sim looks for work right now, from motives -100..100. */
 function computePerformance(sim: Sim): number {
@@ -23,16 +30,19 @@ function computePerformance(sim: Sim): number {
  * for the shift (no commute animation, no actual workplace) — a deliberate
  * simplification, same spirit as the rest of this MVP.
  *
- * On return, also runs the promotion mechanic: performance is snapshotted
- * from motives at departure (matching The Sims 1's own idea that showing up
- * well-rested, fed, and groomed is what gets you promoted) and accumulated
- * into promotionProgress; a level-up resets it and calls onPromotion.
+ * On return, also runs the promotion and firing mechanics: performance is
+ * snapshotted from motives at departure (matching The Sims 1's own idea that
+ * showing up well-rested, fed, and groomed is what gets you ahead) and
+ * accumulated into promotionProgress; a level-up resets it and calls
+ * onPromotion. Two consecutive workdays below FIRING_PERFORMANCE_THRESHOLD
+ * gets a Sim fired instead — calling onFired and clearing their career.
  */
 export function updateJobs(
   sims: Sim[],
   clock: SimClock,
   addFunds: (amount: number) => void,
   onPromotion?: (sim: Sim, newTitle: string) => void,
+  onFired?: (sim: Sim, jobTitle: string) => void,
 ): void {
   const minute = clock.minuteOfDay;
   const isWorkday = WORK_DAYS.includes(clock.dayOfWeek);
@@ -57,6 +67,21 @@ export function updateJobs(
 
       const performance = departurePerformance.get(sim.id) ?? 50;
       departurePerformance.delete(sim.id);
+
+      if (performance < FIRING_PERFORMANCE_THRESHOLD) {
+        const streak = (badStreak.get(sim.id) ?? 0) + 1;
+        if (streak >= FIRING_STREAK_LIMIT) {
+          badStreak.delete(sim.id);
+          const jobTitle = level.title;
+          sim.setCareer(null);
+          onFired?.(sim, jobTitle);
+          continue;
+        }
+        badStreak.set(sim.id, streak);
+      } else {
+        badStreak.delete(sim.id);
+      }
+
       const hasNextLevel = sim.careerLevel < track.levels.length - 1;
       if (hasNextLevel && level.daysToPromote > 0) {
         const gain = (performance / 100) * (100 / level.daysToPromote);

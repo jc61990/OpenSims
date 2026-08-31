@@ -280,6 +280,10 @@ body {
   pointer-events: none;
 }
 
+.promotion-toast.toast-bad {
+  background: #a13e3e;
+}
+
 .buy-status {
   min-height: 14px;
   width: 100%;

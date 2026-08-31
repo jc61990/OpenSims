@@ -250,6 +250,7 @@ async function main(): Promise<void> {
           hud.setFunds(funds);
         },
         (sim, newTitle) => hud.flashPromotion(sim.name, newTitle),
+        (sim, jobTitle) => hud.flashFired(sim.name, jobTitle),
       );
     }
     hud.setClock(`${clock.dayName} · ${clock.formatTime()}`);
