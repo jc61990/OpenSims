@@ -9,7 +9,7 @@ import { updateJobs } from "./game/Jobs.ts";
 import { SimClock } from "./engine/Clock.ts";
 import { IsoRenderer } from "./render/IsoRenderer.ts";
 import { HUD, formatMoney, type Mode, type NewSimData } from "./ui/HUD.ts";
-import { SIM_COLOR_POOL } from "./game/types.ts";
+import { SIM_COLOR_POOL, TRAIT_TYPES } from "./game/types.ts";
 import {
   loadFromStorage,
   saveToStorage,
@@ -247,6 +247,18 @@ async function main(): Promise<void> {
     onCreateSim: (data) => {
       pendingNewSim = data;
       setMode("addsim");
+    },
+    onEditSim: (simId, data) => {
+      const sim = sims.find((s) => s.id === simId);
+      if (!sim) return;
+      sim.name = data.name;
+      sim.color = data.color;
+      for (const t of TRAIT_TYPES) {
+        const value = data.personality[t];
+        if (value !== undefined) sim.personality.set(t, value);
+      }
+      hud.renderSimTabs(sims, selectedSimId);
+      hud.renderSim(sim, sims);
     },
   });
 

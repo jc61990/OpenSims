@@ -31,6 +31,8 @@ export interface HUDCallbacks {
   onSetCareer: (careerId: string | null) => void;
   /** Fired once the Create Sim modal is submitted; placement mode arms right after. */
   onCreateSim: (data: NewSimData) => void;
+  /** Fired once the Edit Sim modal is submitted, applying changes to an already-placed Sim. */
+  onEditSim: (simId: number, data: NewSimData) => void;
 }
 
 function motiveColor(value: number): string {
@@ -65,10 +67,17 @@ export class HUD {
   private saveStatusEl!: HTMLElement;
   private saveStatusTimer: ReturnType<typeof setTimeout> | null = null;
   private modalOverlay!: HTMLElement;
+  private modalTitleEl!: HTMLElement;
+  private modalSubmitBtn!: HTMLButtonElement;
   private nameInput!: HTMLInputElement;
   private colorSwatches: HTMLElement[] = [];
   private selectedColor = SIM_COLOR_POOL[0];
   private traitSliders = {} as Record<TraitType, HTMLInputElement>;
+  /** "create" arms placement on submit; "edit" applies changes to editingSimId in place. */
+  private modalMode: "create" | "edit" = "create";
+  private editingSimId: number | null = null;
+  /** The Sim last passed to renderSim, so the Edit button knows who to edit. */
+  private currentSim: Sim | null = null;
   private careerStatusEl!: HTMLElement;
   private careerTitleEl!: HTMLElement;
   private careerProgressFillEl!: HTMLElement;
@@ -105,11 +114,18 @@ export class HUD {
     const simHeader = document.createElement("h3");
     const simTitle = document.createElement("span");
     simTitle.textContent = "Sim";
+    const editBtn = document.createElement("button");
+    editBtn.className = "mode-btn";
+    editBtn.textContent = "Edit";
+    editBtn.onclick = () => {
+      if (this.currentSim) this.openEditSimModal(this.currentSim);
+    };
     const removeBtn = document.createElement("button");
     removeBtn.className = "mode-btn";
     removeBtn.textContent = "Remove";
     removeBtn.onclick = () => this.callbacks.onRemoveSim();
     simHeader.appendChild(simTitle);
+    simHeader.appendChild(editBtn);
     simHeader.appendChild(removeBtn);
     simPanel.appendChild(simHeader);
     this.simTabsEl = document.createElement("div");
@@ -279,9 +295,9 @@ export class HUD {
     const modal = document.createElement("div");
     modal.className = "panel modal-panel";
 
-    const title = document.createElement("h3");
-    title.textContent = "Create a Sim";
-    modal.appendChild(title);
+    this.modalTitleEl = document.createElement("h3");
+    this.modalTitleEl.textContent = "Create a Sim";
+    modal.appendChild(this.modalTitleEl);
 
     const nameLabel = document.createElement("div");
     nameLabel.className = "section-heading";
@@ -342,18 +358,22 @@ export class HUD {
     cancelBtn.className = "mode-btn";
     cancelBtn.textContent = "Cancel";
     cancelBtn.onclick = () => this.closeCreateSimModal();
-    const createBtn = document.createElement("button");
-    createBtn.className = "mode-btn primary";
-    createBtn.textContent = "Create & Place";
-    createBtn.onclick = () => {
+    this.modalSubmitBtn = document.createElement("button");
+    this.modalSubmitBtn.className = "mode-btn primary";
+    this.modalSubmitBtn.textContent = "Create & Place";
+    this.modalSubmitBtn.onclick = () => {
       const personality: Partial<Record<TraitType, number>> = {};
       for (const t of TRAIT_TYPES) personality[t] = Number(this.traitSliders[t].value);
       const name = this.nameInput.value.trim() || "New Sim";
-      this.callbacks.onCreateSim({ name, color: this.selectedColor, personality });
+      if (this.modalMode === "edit" && this.editingSimId !== null) {
+        this.callbacks.onEditSim(this.editingSimId, { name, color: this.selectedColor, personality });
+      } else {
+        this.callbacks.onCreateSim({ name, color: this.selectedColor, personality });
+      }
       this.closeCreateSimModal();
     };
     buttonRow.appendChild(cancelBtn);
-    buttonRow.appendChild(createBtn);
+    buttonRow.appendChild(this.modalSubmitBtn);
     modal.appendChild(buttonRow);
 
     overlay.appendChild(modal);
@@ -367,10 +387,28 @@ export class HUD {
   }
 
   private openCreateSimModal(): void {
+    this.modalMode = "create";
+    this.editingSimId = null;
+    this.modalTitleEl.textContent = "Create a Sim";
+    this.modalSubmitBtn.textContent = "Create & Place";
     this.nameInput.value = "";
     this.selectedColor = SIM_COLOR_POOL[Math.floor(Math.random() * SIM_COLOR_POOL.length)];
     this.refreshSwatches();
     for (const t of TRAIT_TYPES) this.traitSliders[t].value = "5";
+    this.modalOverlay.style.display = "flex";
+    this.nameInput.focus();
+  }
+
+  private openEditSimModal(sim: Sim): void {
+    this.modalMode = "edit";
+    this.editingSimId = sim.id;
+    this.modalTitleEl.textContent = "Edit Sim";
+    this.modalSubmitBtn.textContent = "Save Changes";
+    this.nameInput.value = sim.name;
+    this.selectedColor = sim.color;
+    this.refreshSwatches();
+    const traits = sim.personality.snapshot();
+    for (const t of TRAIT_TYPES) this.traitSliders[t].value = String(traits[t]);
     this.modalOverlay.style.display = "flex";
     this.nameInput.focus();
   }
@@ -475,6 +513,7 @@ export class HUD {
   }
 
   renderSim(sim: Sim | null, allSims: Sim[] = []): void {
+    this.currentSim = sim;
     if (!sim) {
       this.actionLabelEl.textContent = "";
       this.relationshipsEl.innerHTML = "";

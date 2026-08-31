@@ -28,7 +28,7 @@ npm run typecheck
 - **Buy mode**: pick an object from the palette, then click a floor tile to place it
 - **Walls mode**: click near an edge of a tile to toggle a wall on that edge — walls live on tile boundaries, so a click is matched to whichever of the tile's 4 edges it landed closest to
 - **Doors mode**: same edge-targeting as Walls mode, but turns an existing wall into a passable doorway (and back) instead of removing it outright — a door still separates rooms for scoring purposes, unlike just clearing the wall
-- **+ Sim mode**: opens a Create Sim modal (name, color, and the five personality trait sliders) — submitting it arms placement, then click an open floor tile to add them to the household; **Remove** in the Sim panel deletes the selected one
+- **+ Sim mode**: opens a Create Sim modal (name, color, and the five personality trait sliders) — submitting it arms placement, then click an open floor tile to add them to the household; **Edit** in the Sim panel reopens the same modal prefilled with the selected Sim's current name/color/traits and applies changes in place (no re-placement needed); **Remove** deletes the selected one
 - Speed controls (`II`, `1x`, `2x`, `3x`) control simulation speed, matching the classic pause/play/fast-forward keys
 - **Save** writes the lot and Sims to `localStorage`; **Reset** discards the save and reloads the starter lot
 - The **Career** section in the Sim panel assigns a job; the Sim automatically leaves for their shift and comes home with a paycheck
@@ -85,7 +85,7 @@ Promotions and firing both run on the same return-from-work event: each Sim's mo
 - **Walls are still axis-aligned edges** — real edge walls now (not tile-filling), but no diagonal walls yet.
 - **Doors are a plain toggle, not a placeable object** — no swing animation, no double doors or different door styles, and a door can only be laid over an existing wall rather than placed freestanding; a wall-less gap with no door still silently merges the rooms on either side, which is easy to do by accident when clearing a wall in Walls mode.
 - **Still no sprite art** — object/Sim detail is procedural vector drawing (`ObjectArt.ts`), not sprite sheets: soft blurred contact shadows, a two-layer "glow" fake instead of real gradients (PixiJS's `FillGradient` allocates a GPU texture per instance, which isn't safe to recreate every frame the way this scene redraws), and rounded/capsule Sim bodies instead of flat boxes. It reads much less "voxel game" than flat blocks, but real hand-drawn isometric sprites would still be a big visual upgrade, especially for Sims.
-- **No mid-life customization** — the Create Sim modal covers name/color/personality up front, but there's no way to rename a Sim or edit their traits after they're already placed.
+- **Sim editing is name/color/personality only** — no way to move a Sim to a new tile, change their household, or edit relationships from the Edit modal; a trait change also takes effect immediately, so a Sim mid-interaction under their old traits doesn't retroactively recompute anything already in progress.
 - **Relationships are a single scalar** — no relationship types (friend/romantic/enemy), no memory of specific events, just one number that goes up when Sims chat.
 - **A single flat save slot** — one `localStorage` key, no named saves or multiple households.
 - **No multi-lot / neighborhood view** — one lot, no traveling between lots.
