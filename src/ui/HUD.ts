@@ -9,6 +9,7 @@ import {
 } from "../game/types.ts";
 import { OBJECT_CATALOG } from "../game/ObjectCatalog.ts";
 import { CAREER_TRACKS } from "../game/Job.ts";
+import { relationshipLabel, RELATIONSHIP_LABEL_COLORS } from "../game/Relationships.ts";
 import { formatMinuteOfDay, type SimSpeed } from "../engine/Clock.ts";
 import type { Sim } from "../game/Sim.ts";
 
@@ -548,10 +549,12 @@ export class HUD {
       this.relationshipsEl.appendChild(heading);
       for (const other of others) {
         const value = sim.getRelationship(other.id);
+        const romance = sim.getRomance(other.id);
+        const label = relationshipLabel(value, romance);
         const row = document.createElement("div");
         row.className = "motive-row";
         const pct = ((value + 100) / 200) * 100;
-        row.innerHTML = `<span class="motive-label">${other.name}</span><div class="motive-bar"><div class="motive-bar-fill" style="width:${pct}%;background:${motiveColor(value)}"></div></div>`;
+        row.innerHTML = `<span class="motive-label">${other.name}</span><div class="motive-bar"><div class="motive-bar-fill" style="width:${pct}%;background:${motiveColor(value)}"></div></div><span class="relationship-label" style="color:${RELATIONSHIP_LABEL_COLORS[label]}">${label}</span>`;
         this.relationshipsEl.appendChild(row);
       }
     }

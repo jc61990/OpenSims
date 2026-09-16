@@ -32,6 +32,7 @@ export interface SaveData {
     motives: Partial<Record<MotiveType, number>>;
     personality?: Partial<Record<TraitType, number>>;
     relationships?: [number, number][];
+    romances?: [number, number][];
     careerId?: string | null;
     careerLevel?: number;
     promotionProgress?: number;
@@ -80,6 +81,7 @@ export function serialize(lot: Lot, sims: Sim[], nextSimId: number, funds: numbe
       motives: s.motives.snapshot(),
       personality: s.personality.snapshot(),
       relationships: s.relationshipEntries(),
+      romances: s.romanceEntries(),
       careerId: s.careerId,
       careerLevel: s.careerLevel,
       promotionProgress: s.promotionProgress,
@@ -160,6 +162,9 @@ export function deserializeSims(data: SaveData): Sim[] {
     }
     for (const [otherId, value] of s.relationships ?? []) {
       sim.adjustRelationship(otherId, value);
+    }
+    for (const [otherId, value] of s.romances ?? []) {
+      sim.adjustRomance(otherId, value);
     }
     sim.careerId = s.careerId ?? null;
     sim.careerLevel = s.careerLevel ?? 0;

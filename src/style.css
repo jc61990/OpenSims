@@ -136,6 +136,13 @@ body {
   overflow-y: auto;
 }
 
+.relationship-label {
+  font-size: 10px;
+  font-weight: 600;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
 .action-label {
   font-size: 11px;
   opacity: 0.75;
