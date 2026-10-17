@@ -25,6 +25,16 @@ function computePerformance(sim: Sim): number {
 }
 
 /**
+ * How many consecutive bad-performance workdays a Sim currently has strung
+ * together (0 or 1 — a return of FIRING_STREAK_LIMIT or more never happens,
+ * since hitting that limit fires the Sim and resets the streak in the same
+ * tick). Lets the HUD warn a Sim is one bad day from losing their job.
+ */
+export function getBadStreak(simId: number): number {
+  return badStreak.get(simId) ?? 0;
+}
+
+/**
  * Sends Sims to and from work on schedule, interrupting whatever they're
  * doing when it's time to leave. A Sim at work is simply hidden from the lot
  * for the shift (no commute animation, no actual workplace) — a deliberate

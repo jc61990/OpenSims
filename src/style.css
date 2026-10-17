@@ -272,6 +272,13 @@ body {
   margin-bottom: 3px;
 }
 
+.career-warning {
+  font-size: 10px;
+  color: #e0a055;
+  font-weight: 600;
+  margin-top: 4px;
+}
+
 .promo-fill {
   background: #4ad67f;
 }

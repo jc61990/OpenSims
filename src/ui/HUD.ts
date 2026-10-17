@@ -9,6 +9,7 @@ import {
 } from "../game/types.ts";
 import { OBJECT_CATALOG } from "../game/ObjectCatalog.ts";
 import { CAREER_TRACKS } from "../game/Job.ts";
+import { getBadStreak } from "../game/Jobs.ts";
 import { relationshipLabel, RELATIONSHIP_LABEL_COLORS } from "../game/Relationships.ts";
 import { listSaveSlotsWithMeta, type SlotMeta } from "../game/SaveGame.ts";
 import { formatMinuteOfDay, type SimSpeed } from "../engine/Clock.ts";
@@ -96,6 +97,7 @@ export class HUD {
   private careerStatusEl!: HTMLElement;
   private careerTitleEl!: HTMLElement;
   private careerProgressFillEl!: HTMLElement;
+  private careerWarningEl!: HTMLElement;
   private promotionToastEl!: HTMLElement;
   private promotionToastTimer: ReturnType<typeof setTimeout> | null = null;
   private saveSlotsOverlay!: HTMLElement;
@@ -203,6 +205,9 @@ export class HUD {
     this.careerProgressFillEl.className = "motive-bar-fill promo-fill";
     progressBar.appendChild(this.careerProgressFillEl);
     this.careerStatusEl.appendChild(progressBar);
+    this.careerWarningEl = document.createElement("div");
+    this.careerWarningEl.className = "career-warning";
+    this.careerStatusEl.appendChild(this.careerWarningEl);
     simPanel.appendChild(this.careerStatusEl);
 
     this.careerEl = document.createElement("div");
@@ -723,6 +728,10 @@ export class HUD {
         ? `${level.title} (top of ${track.name})`
         : `${level.title} — ${Math.round(sim.promotionProgress)}% to promotion`;
       this.careerProgressFillEl.style.width = atTop ? "100%" : `${sim.promotionProgress}%`;
+      const atRisk = getBadStreak(sim.id) >= 1;
+      this.careerWarningEl.textContent = atRisk
+        ? "⚠️ One more bad day at work and they'll be fired"
+        : "";
       this.careerStatusEl.style.display = "block";
     } else {
       this.careerStatusEl.style.display = "none";
