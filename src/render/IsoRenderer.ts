@@ -204,6 +204,22 @@ export class IsoRenderer {
         }
       }
     }
+    for (let y = 0; y < this.lot.height; y++) {
+      for (let x = 0; x < this.lot.width; x++) {
+        const diagonal = this.lot.getDiagonal(x, y);
+        if (diagonal === "nwse") {
+          items.push({
+            depth: x + y + 0.5,
+            draw: (g) => drawWallSegment(g, x, y, x + 1, y + 1, WALL_HEIGHT, WALL_TOP, WALL_LEFT, WALL_RIGHT),
+          });
+        } else if (diagonal === "nesw") {
+          items.push({
+            depth: x + y + 0.5,
+            draw: (g) => drawWallSegment(g, x + 1, y, x, y + 1, WALL_HEIGHT, WALL_TOP, WALL_LEFT, WALL_RIGHT),
+          });
+        }
+      }
+    }
     for (let y = 0; y <= this.lot.height; y++) {
       for (let x = 0; x <= this.lot.width; x++) {
         const hasWall =
@@ -214,7 +230,11 @@ export class IsoRenderer {
           this.lot.getVDoor(x, y - 1) ||
           this.lot.getVDoor(x, y) ||
           this.lot.getHDoor(x - 1, y) ||
-          this.lot.getHDoor(x, y);
+          this.lot.getHDoor(x, y) ||
+          this.lot.getDiagonal(x, y) === "nwse" ||
+          this.lot.getDiagonal(x - 1, y - 1) === "nwse" ||
+          this.lot.getDiagonal(x - 1, y) === "nesw" ||
+          this.lot.getDiagonal(x, y - 1) === "nesw";
         if (hasWall) {
           items.push({
             depth: x + y,

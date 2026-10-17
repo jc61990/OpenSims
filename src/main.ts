@@ -111,6 +111,22 @@ function toggleNearestDoor(lot: Lot, gx: number, gy: number, fracX: number, frac
   }
 }
 
+// Diagonals mode: clicking a tile with no diagonal yet places whichever of
+// its two diagonals (nwse or nesw) the click landed closer to; clicking a
+// tile that already has one removes it. A tile with furniture on it is left
+// alone — same "can't place onto an occupied tile" rule Buy mode follows —
+// since a diagonal wall consumes the whole tile (see Lot.isWalkableTile).
+function toggleDiagonal(lot: Lot, gx: number, gy: number, fracX: number, fracY: number): void {
+  if (!lot.inBounds(gx, gy) || lot.objectAt(gx, gy)) return;
+  if (lot.getDiagonal(gx, gy) !== "none") {
+    lot.setDiagonal(gx, gy, "none");
+    return;
+  }
+  const distNwse = Math.abs(fracX - fracY);
+  const distNesw = Math.abs(fracX - (1 - fracY));
+  lot.setDiagonal(gx, gy, distNwse <= distNesw ? "nwse" : "nesw");
+}
+
 // A single interior wall spans the full width at row-boundary 7, splitting
 // the lot into a top half (kitchen, living room) and bottom half (corridor,
 // bedroom, bathroom), with three doorways. Real edge walls have zero
@@ -311,6 +327,8 @@ async function main(): Promise<void> {
         toggleNearestWall(lot, gx, gy, fracX, fracY);
       } else if (mode === "doors") {
         toggleNearestDoor(lot, gx, gy, fracX, fracY);
+      } else if (mode === "diagonals") {
+        toggleDiagonal(lot, gx, gy, fracX, fracY);
       } else if (mode === "buy") {
         if (!activePaletteType) return;
         const def = OBJECT_CATALOG[activePaletteType];

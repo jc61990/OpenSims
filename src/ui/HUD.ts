@@ -15,7 +15,7 @@ import { listSaveSlotsWithMeta, type SlotMeta } from "../game/SaveGame.ts";
 import { formatMinuteOfDay, type SimSpeed } from "../engine/Clock.ts";
 import type { Sim } from "../game/Sim.ts";
 
-export type Mode = "live" | "build" | "doors" | "buy" | "addsim" | "movesim";
+export type Mode = "live" | "build" | "doors" | "diagonals" | "buy" | "addsim" | "movesim";
 
 export interface NewSimData {
   name: string;
@@ -76,7 +76,7 @@ export class HUD {
   private speedButtons = {} as Record<SimSpeed, HTMLButtonElement>;
   private modeButtons = {} as Record<Mode, HTMLButtonElement>;
   private static readonly ALL_SPEEDS: SimSpeed[] = [0, 1, 2, 3];
-  private static readonly ALL_MODES: Mode[] = ["live", "buy", "build", "doors", "addsim"];
+  private static readonly ALL_MODES: Mode[] = ["live", "buy", "build", "doors", "diagonals", "addsim"];
   private paletteEl!: HTMLElement;
   private callbacks: HUDCallbacks;
   private activePalette: string | null = null;
@@ -251,6 +251,7 @@ export class HUD {
       { mode: "buy", label: "Buy" },
       { mode: "build", label: "Walls" },
       { mode: "doors", label: "Doors" },
+      { mode: "diagonals", label: "Diagonals" },
       { mode: "addsim", label: "+ Sim" },
     ];
     for (const { mode, label } of modeDefs) {

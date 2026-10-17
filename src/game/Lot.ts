@@ -6,6 +6,9 @@ export interface Tile {
   floor: number;
 }
 
+/** A diagonal wall's orientation across its tile: the grid-vertex pair it spans. */
+export type Diagonal = "none" | "nwse" | "nesw";
+
 /**
  * A lot grid with true Sims-style edge walls: a wall lives on the boundary
  * between two tiles rather than filling a tile, so every tile is real usable
@@ -34,6 +37,12 @@ export class Lot {
   // vWalls/hWalls entry is false; see hasDoorBetween.
   private vDoors: boolean[];
   private hDoors: boolean[];
+  // Diagonal walls: a simplification of the real Sims-style diagonal wall,
+  // which only cuts off a triangular corner of a tile while leaving the rest
+  // walkable. This model doesn't have sub-tile walkability, so a diagonal
+  // wall here consumes its whole tile instead (see isWalkableTile) — an
+  // honest trade for not needing a second walkability model just for this.
+  private diagonals: Diagonal[];
   readonly objects: GameObject[] = [];
 
   constructor(width: number, height: number) {
@@ -44,6 +53,7 @@ export class Lot {
     this.hWalls = new Array(width * (height + 1)).fill(false);
     this.vDoors = new Array((width + 1) * height).fill(false);
     this.hDoors = new Array(width * (height + 1)).fill(false);
+    this.diagonals = new Array(width * height).fill("none");
     this.buildPerimeterWalls();
   }
 
@@ -144,6 +154,18 @@ export class Lot {
     return false; // not orthogonally adjacent
   }
 
+  // --- Diagonal walls ---
+
+  getDiagonal(x: number, y: number): Diagonal {
+    if (!this.inBounds(x, y)) return "none";
+    return this.diagonals[this.index(x, y)];
+  }
+
+  setDiagonal(x: number, y: number, diagonal: Diagonal): void {
+    if (!this.inBounds(x, y)) return;
+    this.diagonals[this.index(x, y)] = diagonal;
+  }
+
   // --- Floors ---
 
   getFloor(x: number, y: number): number {
@@ -170,6 +192,7 @@ export class Lot {
   /** Whether a Sim could stand on this tile at all (ignoring how they'd get there). */
   isWalkableTile(x: number, y: number): boolean {
     if (!this.inBounds(x, y)) return false;
+    if (this.getDiagonal(x, y) !== "none") return false;
     const obj = this.objectAt(x, y);
     if (obj && !obj.walkable) return false;
     return true;

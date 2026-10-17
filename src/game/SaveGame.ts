@@ -1,4 +1,4 @@
-import { Lot } from "./Lot.ts";
+import { Lot, type Diagonal } from "./Lot.ts";
 import { Sim } from "./Sim.ts";
 import { Personality } from "./Personality.ts";
 import { GameObject } from "./GameObject.ts";
@@ -25,6 +25,8 @@ export interface SaveData {
   /** Same indexing as vWalls/hWalls. Optional: older v2 saves predate doors. */
   vDoors?: boolean[];
   hDoors?: boolean[];
+  /** Tile-indexed (y*lotWidth+x), like floors. Optional: older v2 saves predate diagonal walls. */
+  diagonals?: Diagonal[];
   floors: number[];
   objects: { type: string; x: number; y: number }[];
   sims: {
@@ -66,6 +68,10 @@ export function serialize(lot: Lot, sims: Sim[], nextSimId: number, funds: numbe
   for (let y = 0; y < lot.height; y++) {
     for (let x = 0; x < lot.width; x++) floors.push(lot.getFloor(x, y));
   }
+  const diagonals: Diagonal[] = [];
+  for (let y = 0; y < lot.height; y++) {
+    for (let x = 0; x < lot.width; x++) diagonals.push(lot.getDiagonal(x, y));
+  }
   return {
     version: 2,
     lotWidth: lot.width,
@@ -74,6 +80,7 @@ export function serialize(lot: Lot, sims: Sim[], nextSimId: number, funds: numbe
     hWalls,
     vDoors,
     hDoors,
+    diagonals,
     floors,
     objects: lot.objects.map((o) => ({ type: o.type, x: o.gridX, y: o.gridY })),
     sims: sims.map((s) => ({
@@ -220,6 +227,7 @@ export function deserializeLot(data: SaveData): Lot {
     for (let x = 0; x < data.lotWidth; x++) {
       const i = y * data.lotWidth + x;
       if (data.floors?.[i] !== undefined) lot.setFloor(x, y, data.floors[i]);
+      lot.setDiagonal(x, y, data.diagonals?.[i] ?? "none");
     }
   }
   for (const o of data.objects) {
