@@ -11,9 +11,11 @@ import { IsoRenderer } from "./render/IsoRenderer.ts";
 import { HUD, formatMoney, type Mode, type NewSimData } from "./ui/HUD.ts";
 import { SIM_COLOR_POOL, TRAIT_TYPES } from "./game/types.ts";
 import {
-  loadFromStorage,
-  saveToStorage,
-  clearStorage,
+  saveToSlot,
+  loadFromSlot,
+  deleteSaveSlot,
+  getLastActiveSlot,
+  setLastActiveSlot,
   deserializeLot,
   deserializeSims,
 } from "./game/SaveGame.ts";
@@ -181,7 +183,9 @@ async function main(): Promise<void> {
   canvasHolder.id = "game-canvas-holder";
   appRoot.appendChild(canvasHolder);
 
-  const saveData = loadFromStorage();
+  let activeSlotName = getLastActiveSlot();
+  const saveData = activeSlotName ? loadFromSlot(activeSlotName) : null;
+  if (activeSlotName && !saveData) activeSlotName = null; // slot vanished (e.g. deleted elsewhere)
   const lot = saveData ? deserializeLot(saveData) : createStarterLot();
   const sims: Sim[] = saveData ? deserializeSims(saveData) : createStarterSims();
   let nextSimId = saveData ? saveData.nextSimId : sims.length + 1;
@@ -233,10 +237,37 @@ async function main(): Promise<void> {
       const sim = sims.find((s) => s.id === selectedSimId);
       if (sim) removeSim(sim);
     },
-    onSave: () => saveToStorage(lot, sims, nextSimId, funds),
+    onSave: () => {
+      if (!activeSlotName) {
+        const name = window.prompt("Name this household:", "My Household")?.trim();
+        if (!name) return;
+        activeSlotName = name;
+      }
+      saveToSlot(activeSlotName, lot, sims, nextSimId, funds);
+      setLastActiveSlot(activeSlotName);
+      hud.setActiveSlotName(activeSlotName);
+    },
     onResetSave: () => {
-      clearStorage();
+      setLastActiveSlot(null);
       window.location.reload();
+    },
+    onSaveAs: (name) => {
+      activeSlotName = name;
+      saveToSlot(name, lot, sims, nextSimId, funds);
+      setLastActiveSlot(name);
+      hud.setActiveSlotName(name);
+    },
+    onLoadSlot: (name) => {
+      setLastActiveSlot(name);
+      window.location.reload();
+    },
+    onDeleteSlot: (name) => {
+      deleteSaveSlot(name);
+      if (name === activeSlotName) {
+        activeSlotName = null;
+        setLastActiveSlot(null);
+        hud.setActiveSlotName(null);
+      }
     },
     onSetCareer: (careerId) => {
       const sim = sims.find((s) => s.id === selectedSimId);
@@ -265,6 +296,7 @@ async function main(): Promise<void> {
   hud.setMode(mode);
   hud.setSpeed(clock.speed);
   hud.setFunds(funds);
+  hud.setActiveSlotName(activeSlotName);
   hud.renderSimTabs(sims, selectedSimId);
 
   await renderer.init(canvasHolder, lot, () => sims, {

@@ -304,6 +304,49 @@ body {
   margin-top: 2px;
 }
 
+.active-slot-label {
+  font-weight: 600;
+}
+
+.save-slots-list {
+  max-height: 220px;
+  overflow-y: auto;
+  margin-bottom: 8px;
+}
+
+.save-slot-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+}
+
+.save-slot-row.active .save-slot-name {
+  color: #6fe08a;
+  font-weight: 600;
+}
+
+.save-slot-name {
+  flex: 1;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.save-slot-new-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.save-slot-new-row .modal-input {
+  flex: 1;
+  min-width: 0;
+  width: auto;
+  margin-bottom: 0;
+}
+
 .top-bar {
   position: absolute;
   top: 10px;

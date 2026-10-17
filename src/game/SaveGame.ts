@@ -5,6 +5,8 @@ import { GameObject } from "./GameObject.ts";
 import { OBJECT_CATALOG } from "./ObjectCatalog.ts";
 import { MOTIVE_TYPES, TRAIT_TYPES, type MotiveType, type TraitType } from "./types.ts";
 
+// The original single fixed-key save, from before named slots existed.
+// Nothing writes here anymore — it's only read once, by migrateLegacySave.
 const SAVE_KEY = "opensims:save:v1";
 
 // Bumped to 2 when walls moved from per-tile flags to edge arrays — an
@@ -91,12 +93,55 @@ export function serialize(lot: Lot, sims: Sim[], nextSimId: number, funds: numbe
   };
 }
 
-export function saveToStorage(lot: Lot, sims: Sim[], nextSimId: number, funds: number): void {
-  localStorage.setItem(SAVE_KEY, JSON.stringify(serialize(lot, sims, nextSimId, funds)));
+// Multiple named households can be saved side by side. SLOTS_KEY holds the
+// ordered list of slot names; each slot's data lives under its own key so
+// loading one slot never has to touch another's. LAST_ACTIVE_KEY is which
+// slot to resume on page load, so a refresh continues the same household.
+const SLOTS_KEY = "opensims:save:slots";
+const LAST_ACTIVE_KEY = "opensims:save:lastActive";
+
+function slotStorageKey(name: string): string {
+  return `opensims:save:slot:${encodeURIComponent(name)}`;
 }
 
-export function loadFromStorage(): SaveData | null {
-  const raw = localStorage.getItem(SAVE_KEY);
+/**
+ * Moves a pre-multi-slot save (the single fixed-key save this project used
+ * to have) into a slot named "My Household", once. A no-op after the first
+ * call ever since — the slot registry's mere presence (even empty) marks
+ * migration as already done.
+ */
+function migrateLegacySave(): void {
+  if (localStorage.getItem(SLOTS_KEY) !== null) return;
+  const legacy = localStorage.getItem(SAVE_KEY);
+  if (legacy) {
+    localStorage.setItem(slotStorageKey("My Household"), legacy);
+    localStorage.setItem(SLOTS_KEY, JSON.stringify(["My Household"]));
+    localStorage.setItem(LAST_ACTIVE_KEY, "My Household");
+    localStorage.removeItem(SAVE_KEY);
+  } else {
+    localStorage.setItem(SLOTS_KEY, JSON.stringify([]));
+  }
+}
+
+export function listSaveSlots(): string[] {
+  migrateLegacySave();
+  try {
+    return JSON.parse(localStorage.getItem(SLOTS_KEY) ?? "[]") as string[];
+  } catch {
+    return [];
+  }
+}
+
+export function saveToSlot(name: string, lot: Lot, sims: Sim[], nextSimId: number, funds: number): void {
+  localStorage.setItem(slotStorageKey(name), JSON.stringify(serialize(lot, sims, nextSimId, funds)));
+  const slots = listSaveSlots();
+  if (!slots.includes(name)) {
+    localStorage.setItem(SLOTS_KEY, JSON.stringify([...slots, name]));
+  }
+}
+
+export function loadFromSlot(name: string): SaveData | null {
+  const raw = localStorage.getItem(slotStorageKey(name));
   if (!raw) return null;
   try {
     const data = JSON.parse(raw) as SaveData;
@@ -107,8 +152,20 @@ export function loadFromStorage(): SaveData | null {
   }
 }
 
-export function clearStorage(): void {
-  localStorage.removeItem(SAVE_KEY);
+export function deleteSaveSlot(name: string): void {
+  localStorage.removeItem(slotStorageKey(name));
+  localStorage.setItem(SLOTS_KEY, JSON.stringify(listSaveSlots().filter((n) => n !== name)));
+}
+
+/** Which slot to resume on page load, so a refresh continues the same household. */
+export function getLastActiveSlot(): string | null {
+  migrateLegacySave();
+  return localStorage.getItem(LAST_ACTIVE_KEY);
+}
+
+export function setLastActiveSlot(name: string | null): void {
+  if (name === null) localStorage.removeItem(LAST_ACTIVE_KEY);
+  else localStorage.setItem(LAST_ACTIVE_KEY, name);
 }
 
 export function deserializeLot(data: SaveData): Lot {

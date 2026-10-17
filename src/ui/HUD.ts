@@ -10,6 +10,7 @@ import {
 import { OBJECT_CATALOG } from "../game/ObjectCatalog.ts";
 import { CAREER_TRACKS } from "../game/Job.ts";
 import { relationshipLabel, RELATIONSHIP_LABEL_COLORS } from "../game/Relationships.ts";
+import { listSaveSlots } from "../game/SaveGame.ts";
 import { formatMinuteOfDay, type SimSpeed } from "../engine/Clock.ts";
 import type { Sim } from "../game/Sim.ts";
 
@@ -29,6 +30,11 @@ export interface HUDCallbacks {
   onRemoveSim: () => void;
   onSave: () => void;
   onResetSave: () => void;
+  /** Saves the current game state as a new (or overwritten) named slot and makes it active. */
+  onSaveAs: (name: string) => void;
+  /** Loads a slot and makes it active — reloads the page to apply it. */
+  onLoadSlot: (name: string) => void;
+  onDeleteSlot: (name: string) => void;
   onSetCareer: (careerId: string | null) => void;
   /** Fired once the Create Sim modal is submitted; placement mode arms right after. */
   onCreateSim: (data: NewSimData) => void;
@@ -84,6 +90,11 @@ export class HUD {
   private careerProgressFillEl!: HTMLElement;
   private promotionToastEl!: HTMLElement;
   private promotionToastTimer: ReturnType<typeof setTimeout> | null = null;
+  private saveSlotsOverlay!: HTMLElement;
+  private saveSlotsListEl!: HTMLElement;
+  private newSlotNameInput!: HTMLInputElement;
+  private activeSlotLabelEl!: HTMLElement;
+  private activeSlotName: string | null = null;
 
   constructor(root: HTMLElement, callbacks: HUDCallbacks) {
     this.root = root;
@@ -234,6 +245,11 @@ export class HUD {
     }
     controlsPanel.appendChild(modeRow);
 
+    this.activeSlotLabelEl = document.createElement("div");
+    this.activeSlotLabelEl.className = "hint active-slot-label";
+    this.activeSlotLabelEl.textContent = "Unsaved household";
+    controlsPanel.appendChild(this.activeSlotLabelEl);
+
     const saveRow = document.createElement("div");
     saveRow.className = "mode-controls";
     const saveBtn = document.createElement("button");
@@ -243,16 +259,20 @@ export class HUD {
       this.callbacks.onSave();
       this.flashSaveStatus("Saved");
     };
+    const savesBtn = document.createElement("button");
+    savesBtn.className = "mode-btn";
+    savesBtn.textContent = "Saves";
+    savesBtn.onclick = () => this.openSaveSlotsModal();
     const resetBtn = document.createElement("button");
     resetBtn.className = "mode-btn";
     resetBtn.textContent = "Reset";
     resetBtn.onclick = () => {
-      if (window.confirm("Discard the saved game and start over?")) {
+      if (window.confirm("Start a new, unsaved household? (Your saved households won't be deleted.)")) {
         this.callbacks.onResetSave();
-        this.flashSaveStatus("Reset");
       }
     };
     saveRow.appendChild(saveBtn);
+    saveRow.appendChild(savesBtn);
     saveRow.appendChild(resetBtn);
     controlsPanel.appendChild(saveRow);
     this.saveStatusEl = document.createElement("div");
@@ -285,6 +305,7 @@ export class HUD {
     this.root.appendChild(hud);
 
     this.buildCreateSimModal();
+    this.buildSaveSlotsModal();
   }
 
   private buildCreateSimModal(): void {
@@ -416,6 +437,112 @@ export class HUD {
 
   private closeCreateSimModal(): void {
     this.modalOverlay.style.display = "none";
+  }
+
+  private buildSaveSlotsModal(): void {
+    const overlay = document.createElement("div");
+    overlay.className = "modal-overlay";
+    overlay.style.display = "none";
+    this.saveSlotsOverlay = overlay;
+
+    const modal = document.createElement("div");
+    modal.className = "panel modal-panel";
+
+    const title = document.createElement("h3");
+    title.textContent = "Saved Households";
+    modal.appendChild(title);
+
+    this.saveSlotsListEl = document.createElement("div");
+    this.saveSlotsListEl.className = "save-slots-list";
+    modal.appendChild(this.saveSlotsListEl);
+
+    const newLabel = document.createElement("div");
+    newLabel.className = "section-heading";
+    newLabel.textContent = "Save current as new";
+    modal.appendChild(newLabel);
+    const newRow = document.createElement("div");
+    newRow.className = "save-slot-new-row";
+    this.newSlotNameInput = document.createElement("input");
+    this.newSlotNameInput.type = "text";
+    this.newSlotNameInput.className = "modal-input";
+    this.newSlotNameInput.placeholder = "Household name";
+    this.newSlotNameInput.maxLength = 32;
+    const saveAsBtn = document.createElement("button");
+    saveAsBtn.className = "mode-btn primary";
+    saveAsBtn.textContent = "Save As";
+    saveAsBtn.onclick = () => {
+      const name = this.newSlotNameInput.value.trim();
+      if (!name) return;
+      this.callbacks.onSaveAs(name);
+      this.newSlotNameInput.value = "";
+      this.refreshSaveSlotsList();
+    };
+    newRow.appendChild(this.newSlotNameInput);
+    newRow.appendChild(saveAsBtn);
+    modal.appendChild(newRow);
+
+    const buttonRow = document.createElement("div");
+    buttonRow.className = "mode-controls modal-buttons";
+    const closeBtn = document.createElement("button");
+    closeBtn.className = "mode-btn";
+    closeBtn.textContent = "Close";
+    closeBtn.onclick = () => this.closeSaveSlotsModal();
+    buttonRow.appendChild(closeBtn);
+    modal.appendChild(buttonRow);
+
+    overlay.appendChild(modal);
+    this.root.appendChild(overlay);
+  }
+
+  private refreshSaveSlotsList(): void {
+    this.saveSlotsListEl.innerHTML = "";
+    const slots = listSaveSlots();
+    if (slots.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "hint";
+      empty.textContent = "No saved households yet.";
+      this.saveSlotsListEl.appendChild(empty);
+      return;
+    }
+    for (const name of slots) {
+      const row = document.createElement("div");
+      row.className = "save-slot-row" + (name === this.activeSlotName ? " active" : "");
+      const label = document.createElement("span");
+      label.className = "save-slot-name";
+      label.textContent = name;
+      const loadBtn = document.createElement("button");
+      loadBtn.className = "mode-btn";
+      loadBtn.textContent = "Load";
+      loadBtn.onclick = () => this.callbacks.onLoadSlot(name);
+      const deleteBtn = document.createElement("button");
+      deleteBtn.className = "mode-btn";
+      deleteBtn.textContent = "Delete";
+      deleteBtn.onclick = () => {
+        if (window.confirm(`Delete "${name}"? This can't be undone.`)) {
+          this.callbacks.onDeleteSlot(name);
+          this.refreshSaveSlotsList();
+        }
+      };
+      row.appendChild(label);
+      row.appendChild(loadBtn);
+      row.appendChild(deleteBtn);
+      this.saveSlotsListEl.appendChild(row);
+    }
+  }
+
+  private openSaveSlotsModal(): void {
+    this.refreshSaveSlotsList();
+    this.saveSlotsOverlay.style.display = "flex";
+  }
+
+  private closeSaveSlotsModal(): void {
+    this.saveSlotsOverlay.style.display = "none";
+  }
+
+  /** Reflects which slot the session is currently tied to — null for an unsaved household. */
+  setActiveSlotName(name: string | null): void {
+    this.activeSlotName = name;
+    this.activeSlotLabelEl.textContent = name ? `Playing: ${name}` : "Unsaved household";
   }
 
   private buildCareerButtons(): void {

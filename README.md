@@ -30,7 +30,7 @@ npm run typecheck
 - **Doors mode**: same edge-targeting as Walls mode, but turns an existing wall into a passable doorway (and back) instead of removing it outright — a door still separates rooms for scoring purposes, unlike just clearing the wall
 - **+ Sim mode**: opens a Create Sim modal (name, color, and the five personality trait sliders) — submitting it arms placement, then click an open floor tile to add them to the household; **Edit** in the Sim panel reopens the same modal prefilled with the selected Sim's current name/color/traits and applies changes in place (no re-placement needed); **Remove** deletes the selected one
 - Speed controls (`II`, `1x`, `2x`, `3x`) control simulation speed, matching the classic pause/play/fast-forward keys
-- **Save** writes the lot and Sims to `localStorage`; **Reset** discards the save and reloads the starter lot
+- **Save** writes the current household to its active named slot (prompting for a name the first time); **Saves** opens a modal listing every saved household, each with its own Load/Delete, plus a "Save As" field to fork the current state into a new slot; **Reset** starts a fresh, unsaved household without touching anything already saved
 - The **Career** section in the Sim panel assigns a job; the Sim automatically leaves for their shift and comes home with a paycheck
 
 The starter household is Bella and Mortimer Goth, The Sims 1's iconic premade neighbors. Sims added later draw from a pool of other classic-series first names.
@@ -47,7 +47,11 @@ src/
   ui/           HUD — DOM-based overlay for motives, speed, and build/buy controls
 ```
 
-`game/SaveGame.ts` (de)serializes the lot (dimensions, walls, objects) and Sims (position, motives) to a single `localStorage` key.
+`game/SaveGame.ts` (de)serializes the lot (dimensions, walls, objects) and Sims (position, motives) into named save slots, described below.
+
+### Save slots
+
+Multiple households can be saved side by side instead of one fixed `localStorage` key. `SaveGame.ts` keeps an ordered registry of slot names (`opensims:save:slots`) alongside each slot's own data (`opensims:save:slot:<name>`), and a separate `opensims:save:lastActive` pointer so reloading the page resumes whichever household you were last playing — `Save` without an active slot prompts for a name once, then quick-saves to it from then on; `Save As` in the Saves modal forks the current state into a brand-new slot and makes it active; `Reset` just clears the active-slot pointer and reloads to a fresh, unsaved household, it never deletes saved data. A one-time migration (`migrateLegacySave`) moves this project's original single fixed-key save into a slot named "My Household" the first time `listSaveSlots`/`getLastActiveSlot` runs after upgrading, so nobody's existing save is lost.
 
 ### Walls
 
@@ -89,7 +93,7 @@ Promotions and firing both run on the same return-from-work event: each Sim's mo
 - **Still no sprite art** — object/Sim detail is procedural vector drawing (`ObjectArt.ts`), not sprite sheets: soft blurred contact shadows, a two-layer "glow" fake instead of real gradients (PixiJS's `FillGradient` allocates a GPU texture per instance, which isn't safe to recreate every frame the way this scene redraws), and rounded/capsule Sim bodies instead of flat boxes. It reads much less "voxel game" than flat blocks, but real hand-drawn isometric sprites would still be a big visual upgrade, especially for Sims.
 - **Sim editing is name/color/personality only** — no way to move a Sim to a new tile, change their household, or edit relationships from the Edit modal; a trait change also takes effect immediately, so a Sim mid-interaction under their old traits doesn't retroactively recompute anything already in progress.
 - **Relationships have no memory of specific events** — friendship/romance are two running scalars plus a derived label (Friend, Enemy, Crush, etc.), not a log of moments; there's no "first kiss," no grudge from a specific bad interaction, and no family/household relationship types (spouse, sibling) at all — every pairing is scored by the same generic compatibility formula.
-- **A single flat save slot** — one `localStorage` key, no named saves or multiple households.
+- **Save slots have no previews or metadata** — just a name; no thumbnail, last-played timestamp, or household size shown in the Saves modal, and no rename-in-place (delete and re-save under a new name instead), no export/import or cloud sync.
 - **No multi-lot / neighborhood view** — one lot, no traveling between lots.
 - **Firing is a blunt, streak-based check** — two bad departure snapshots in a row and a Sim is out, with no partial warning state or way to see the streak coming; motives also keep decaying normally while a Sim is at work with nothing checking them mid-shift (only the departure snapshot matters).
 
