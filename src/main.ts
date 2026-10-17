@@ -184,12 +184,24 @@ function createStarterLot(): Lot {
 // original gameplay numbers loosely flavored to match their vibe (social
 // butterfly vs. tidy homebody) — not a reproduction of anything from the
 // actual games.
+//
+// Larry Lubin, the town's mayor, rounds out the household's third slot:
+// sky-high Outgoing (he knows absolutely everyone) paired with middling
+// Nice and high Neat — a fussy, opinionated, can't-let-a-small-thing-go
+// personality profile, the "lovably exasperating" type. He starts already
+// at the top of the Politics career track, since he's the mayor, not
+// working his way up to it.
 function createStarterSims(): Sim[] {
   const bella = new Personality({ neat: 5, outgoing: 8, active: 5, playful: 7, nice: 6 });
   const mortimer = new Personality({ neat: 8, outgoing: 3, active: 4, playful: 4, nice: 6 });
+  const larry = new Personality({ neat: 7, outgoing: 9, active: 4, playful: 6, nice: 3 });
+  const larryLubin = new Sim(3, "Larry Lubin", colorForId(3), 11, 5, larry);
+  larryLubin.careerId = "politics";
+  larryLubin.careerLevel = 2; // Mayor — top of the Politics track
   return [
     new Sim(1, "Bella Goth", colorForId(1), 7, 6, bella),
     new Sim(2, "Mortimer Goth", colorForId(2), 7, 8, mortimer),
+    larryLubin,
   ];
 }
 

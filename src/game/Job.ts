@@ -58,6 +58,15 @@ export const CAREER_TRACKS: Record<string, CareerTrack> = {
       { title: "Lead Scientist", dailyPay: 420, leaveMinute: 8 * 60 + 30, returnMinute: 18 * 60, daysToPromote: 0 },
     ],
   },
+  politics: {
+    id: "politics",
+    name: "Politics",
+    levels: [
+      { title: "City Council Aide", dailyPay: 100, leaveMinute: 8 * 60, returnMinute: 17 * 60, daysToPromote: 6 },
+      { title: "Council Member", dailyPay: 180, leaveMinute: 8 * 60, returnMinute: 18 * 60, daysToPromote: 8 },
+      { title: "Mayor", dailyPay: 350, leaveMinute: 8 * 60, returnMinute: 19 * 60, daysToPromote: 0 },
+    ],
+  },
 };
 
 export function getJobLevel(careerId: string | null, level: number): JobLevel | null {
