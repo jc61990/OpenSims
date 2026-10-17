@@ -14,7 +14,7 @@ import { listSaveSlots } from "../game/SaveGame.ts";
 import { formatMinuteOfDay, type SimSpeed } from "../engine/Clock.ts";
 import type { Sim } from "../game/Sim.ts";
 
-export type Mode = "live" | "build" | "doors" | "buy" | "addsim";
+export type Mode = "live" | "build" | "doors" | "buy" | "addsim" | "movesim";
 
 export interface NewSimData {
   name: string;
@@ -28,6 +28,8 @@ export interface HUDCallbacks {
   onPaletteSelect: (objectType: string) => void;
   onSelectSim: (simId: number) => void;
   onRemoveSim: () => void;
+  /** Arms movesim mode for the currently selected Sim; next tile click relocates them. */
+  onMoveSim: () => void;
   onSave: () => void;
   onResetSave: () => void;
   /** Saves the current game state as a new (or overwritten) named slot and makes it active. */
@@ -132,13 +134,21 @@ export class HUD {
     editBtn.onclick = () => {
       if (this.currentSim) this.openEditSimModal(this.currentSim);
     };
+    const moveBtn = document.createElement("button");
+    moveBtn.className = "mode-btn";
+    moveBtn.textContent = "Move";
+    moveBtn.onclick = () => this.callbacks.onMoveSim();
     const removeBtn = document.createElement("button");
     removeBtn.className = "mode-btn";
     removeBtn.textContent = "Remove";
     removeBtn.onclick = () => this.callbacks.onRemoveSim();
+    const simHeaderActions = document.createElement("div");
+    simHeaderActions.className = "sim-header-actions";
+    simHeaderActions.appendChild(editBtn);
+    simHeaderActions.appendChild(moveBtn);
+    simHeaderActions.appendChild(removeBtn);
     simHeader.appendChild(simTitle);
-    simHeader.appendChild(editBtn);
-    simHeader.appendChild(removeBtn);
+    simHeader.appendChild(simHeaderActions);
     simPanel.appendChild(simHeader);
     this.simTabsEl = document.createElement("div");
     this.simTabsEl.className = "sim-tabs";

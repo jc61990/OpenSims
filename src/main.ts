@@ -195,6 +195,7 @@ async function main(): Promise<void> {
   let mode: Mode = "live";
   let activePaletteType: string | null = null;
   let pendingNewSim: NewSimData | null = null;
+  let pendingMoveSimId: number | null = null;
 
   const clock = new SimClock();
   const renderer = new IsoRenderer();
@@ -236,6 +237,11 @@ async function main(): Promise<void> {
     onRemoveSim: () => {
       const sim = sims.find((s) => s.id === selectedSimId);
       if (sim) removeSim(sim);
+    },
+    onMoveSim: () => {
+      if (selectedSimId === null) return;
+      pendingMoveSimId = selectedSimId;
+      setMode("movesim");
     },
     onSave: () => {
       if (!activeSlotName) {
@@ -331,6 +337,23 @@ async function main(): Promise<void> {
         renderer.selectedSimId = sim.id;
         hud.renderSimTabs(sims, selectedSimId);
         setMode("live");
+      } else if (mode === "movesim") {
+        const sim = sims.find((s) => s.id === pendingMoveSimId);
+        if (!sim) {
+          pendingMoveSimId = null;
+          setMode("live");
+          return;
+        }
+        if (!lot.isWalkableTile(gx, gy)) return;
+        for (const other of sims) {
+          if (other !== sim && other.socialPartner === sim) other.interrupt();
+        }
+        sim.interrupt();
+        sim.x = gx;
+        sim.y = gy;
+        pendingMoveSimId = null;
+        setMode("live");
+        hud.renderSim(sim, sims);
       }
     },
     onSimClick: (simId) => {
