@@ -10,7 +10,7 @@ import {
 import { OBJECT_CATALOG } from "../game/ObjectCatalog.ts";
 import { CAREER_TRACKS } from "../game/Job.ts";
 import { relationshipLabel, RELATIONSHIP_LABEL_COLORS } from "../game/Relationships.ts";
-import { listSaveSlots } from "../game/SaveGame.ts";
+import { listSaveSlotsWithMeta, type SlotMeta } from "../game/SaveGame.ts";
 import { formatMinuteOfDay, type SimSpeed } from "../engine/Clock.ts";
 import type { Sim } from "../game/Sim.ts";
 
@@ -48,6 +48,12 @@ function motiveColor(value: number): string {
   if (value < -20) return "#e05555";
   if (value < 20) return "#e0b055";
   return "#55c778";
+}
+
+function formatSlotMeta(slot: SlotMeta): string {
+  const when = slot.savedAt ? new Date(slot.savedAt).toLocaleString() : "unknown time";
+  const simWord = slot.simCount === 1 ? "Sim" : "Sims";
+  return `Saved ${when} · ${slot.simCount} ${simWord} · ${formatMoney(slot.funds)}`;
 }
 
 export function formatMoney(amount: number): string {
@@ -506,7 +512,7 @@ export class HUD {
 
   private refreshSaveSlotsList(): void {
     this.saveSlotsListEl.innerHTML = "";
-    const slots = listSaveSlots();
+    const slots = listSaveSlotsWithMeta();
     if (slots.length === 0) {
       const empty = document.createElement("div");
       empty.className = "hint";
@@ -514,12 +520,20 @@ export class HUD {
       this.saveSlotsListEl.appendChild(empty);
       return;
     }
-    for (const name of slots) {
+    for (const slot of slots) {
+      const name = slot.name;
       const row = document.createElement("div");
       row.className = "save-slot-row" + (name === this.activeSlotName ? " active" : "");
-      const label = document.createElement("span");
+      const info = document.createElement("div");
+      info.className = "save-slot-info";
+      const label = document.createElement("div");
       label.className = "save-slot-name";
       label.textContent = name;
+      const meta = document.createElement("div");
+      meta.className = "save-slot-meta";
+      meta.textContent = formatSlotMeta(slot);
+      info.appendChild(label);
+      info.appendChild(meta);
       const loadBtn = document.createElement("button");
       loadBtn.className = "mode-btn";
       loadBtn.textContent = "Load";
@@ -533,7 +547,7 @@ export class HUD {
           this.refreshSaveSlotsList();
         }
       };
-      row.appendChild(label);
+      row.appendChild(info);
       row.appendChild(loadBtn);
       row.appendChild(deleteBtn);
       this.saveSlotsListEl.appendChild(row);

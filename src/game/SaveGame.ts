@@ -14,6 +14,8 @@ const SAVE_KEY = "opensims:save:v1";
 // back to the starter lot) rather than misread.
 export interface SaveData {
   version: 2;
+  /** Set by saveToSlot; absent on a slot migrated from the pre-metadata legacy save. */
+  savedAt?: number;
   lotWidth: number;
   lotHeight: number;
   /** Vertical edges, row-major: index = y*(lotWidth+1)+x, x in 0..lotWidth. */
@@ -133,7 +135,9 @@ export function listSaveSlots(): string[] {
 }
 
 export function saveToSlot(name: string, lot: Lot, sims: Sim[], nextSimId: number, funds: number): void {
-  localStorage.setItem(slotStorageKey(name), JSON.stringify(serialize(lot, sims, nextSimId, funds)));
+  const data = serialize(lot, sims, nextSimId, funds);
+  data.savedAt = Date.now();
+  localStorage.setItem(slotStorageKey(name), JSON.stringify(data));
   const slots = listSaveSlots();
   if (!slots.includes(name)) {
     localStorage.setItem(SLOTS_KEY, JSON.stringify([...slots, name]));
@@ -155,6 +159,27 @@ export function loadFromSlot(name: string): SaveData | null {
 export function deleteSaveSlot(name: string): void {
   localStorage.removeItem(slotStorageKey(name));
   localStorage.setItem(SLOTS_KEY, JSON.stringify(listSaveSlots().filter((n) => n !== name)));
+}
+
+export interface SlotMeta {
+  name: string;
+  /** null for a slot migrated from the pre-metadata legacy save, or one that failed to load. */
+  savedAt: number | null;
+  simCount: number;
+  funds: number;
+}
+
+/** listSaveSlots() plus each slot's at-a-glance stats, for the Saves modal. */
+export function listSaveSlotsWithMeta(): SlotMeta[] {
+  return listSaveSlots().map((name) => {
+    const data = loadFromSlot(name);
+    return {
+      name,
+      savedAt: data?.savedAt ?? null,
+      simCount: data?.sims.length ?? 0,
+      funds: data?.funds ?? 0,
+    };
+  });
 }
 
 /** Which slot to resume on page load, so a refresh continues the same household. */

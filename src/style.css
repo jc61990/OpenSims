@@ -331,9 +331,22 @@ body {
   font-weight: 600;
 }
 
-.save-slot-name {
+.save-slot-info {
   flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.save-slot-name {
   font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.save-slot-meta {
+  font-size: 10px;
+  opacity: 0.6;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
