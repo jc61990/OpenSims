@@ -82,6 +82,7 @@ export class HUD {
   private motiveRowsEl!: HTMLElement;
   private traitRowsEl!: HTMLElement;
   private relationshipsEl!: HTMLElement;
+  private memoriesEl!: HTMLElement;
   // Which Sim the relationship rows currently reflect, and the live DOM refs
   // for each row — so renderSim (called every animation frame) can update
   // them in place instead of wiping relationshipsEl.innerHTML every call.
@@ -216,6 +217,14 @@ export class HUD {
     this.relationshipsEl = document.createElement("div");
     this.relationshipsEl.className = "relationships";
     simPanel.appendChild(this.relationshipsEl);
+
+    const memoriesHeading = document.createElement("div");
+    memoriesHeading.className = "section-heading";
+    memoriesHeading.textContent = "Memories";
+    simPanel.appendChild(memoriesHeading);
+    this.memoriesEl = document.createElement("div");
+    this.memoriesEl.className = "memories-list";
+    simPanel.appendChild(this.memoriesEl);
 
     const careerHeading = document.createElement("div");
     careerHeading.className = "section-heading";
@@ -794,6 +803,7 @@ export class HUD {
     if (!sim) {
       this.actionLabelEl.textContent = "";
       this.clearRelationships();
+      this.memoriesEl.innerHTML = "";
       for (const item of this.careerEl.querySelectorAll(".career-item")) item.classList.remove("active");
       return;
     }
@@ -817,6 +827,7 @@ export class HUD {
     }
 
     this.renderRelationships(sim, allSims.filter((s) => s.id !== sim.id));
+    this.renderMemories(sim);
 
     const careerItems = this.careerEl.querySelectorAll<HTMLElement>(".career-item");
     for (const item of careerItems) {
@@ -841,6 +852,24 @@ export class HUD {
     }
 
     this.actionLabelEl.textContent = sim.currentAction;
+  }
+
+  /** Read-only text, so a full rebuild every frame (no interactive content to lose) is fine. */
+  private renderMemories(sim: Sim): void {
+    this.memoriesEl.innerHTML = "";
+    if (sim.memories.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "hint";
+      empty.textContent = "Nothing memorable yet.";
+      this.memoriesEl.appendChild(empty);
+      return;
+    }
+    for (let i = sim.memories.length - 1; i >= 0; i--) {
+      const row = document.createElement("div");
+      row.className = "memory-row";
+      row.textContent = sim.memories[i];
+      this.memoriesEl.appendChild(row);
+    }
   }
 
   private clearRelationships(): void {

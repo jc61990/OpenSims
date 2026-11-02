@@ -2,7 +2,7 @@ import { Motives } from "./Motives.ts";
 import { Personality } from "./Personality.ts";
 import { findPath, type GridPoint } from "../engine/Pathfinding.ts";
 import { TRAIT_FOR_MOTIVE } from "./types.ts";
-import { compatibility, type FamilyRelation } from "./Relationships.ts";
+import { compatibility, describeChatMemory, relationshipLabel, type FamilyRelation } from "./Relationships.ts";
 import type { Lot } from "./Lot.ts";
 import type { GameObject, Interaction } from "./GameObject.ts";
 import type { Pet } from "./Pet.ts";
@@ -24,6 +24,7 @@ const MAX_RELATIONSHIP = 100;
 const PET_FUN_GAIN_PER_MINUTE = 8;
 const PET_SOCIAL_GAIN_PER_MINUTE = 2;
 const PET_DURATION_MINUTES = 15;
+export const MAX_MEMORIES = 12;
 
 export class Sim {
   readonly id: number;
@@ -54,6 +55,10 @@ export class Sim {
 
   socialPartner: Sim | null = null;
   private socialElapsed = 0;
+  private socialStartRelationship = 0;
+  private socialStartRomance = 0;
+  /** A short, newest-last log of notable moments from this Sim's own point of view (see Relationships.describeChatMemory). */
+  memories: string[] = [];
 
   currentPet: Pet | null = null;
   private petElapsed = 0;
@@ -168,14 +173,26 @@ export class Sim {
     this.state = "socializing";
     this.socialPartner = partner;
     this.socialElapsed = 0;
+    this.socialStartRelationship = this.getRelationship(partner.id);
+    this.socialStartRomance = this.getRomance(partner.id);
     this.currentAction = `Chatting with ${partner.name}`;
     this.facing = { dx: partner.gridX - this.gridX, dy: partner.gridY - this.gridY };
   }
 
   private stopSocializing(): void {
+    if (this.socialPartner) this.recordChatMemory(this.socialPartner);
     this.state = "idle";
     this.currentAction = "Idle";
     this.socialPartner = null;
+  }
+
+  private recordChatMemory(partner: Sim): void {
+    const oldLabel = relationshipLabel(this.socialStartRelationship, this.socialStartRomance);
+    const newRelationship = this.getRelationship(partner.id);
+    const newLabel = relationshipLabel(newRelationship, this.getRomance(partner.id));
+    const delta = newRelationship - this.socialStartRelationship;
+    this.memories.push(describeChatMemory(partner.name, oldLabel, newLabel, delta));
+    if (this.memories.length > MAX_MEMORIES) this.memories.shift();
   }
 
   startPetting(pet: Pet): void {

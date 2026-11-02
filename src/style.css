@@ -141,6 +141,18 @@ body {
   overflow-y: auto;
 }
 
+.memories-list {
+  max-height: 70px;
+  overflow-y: auto;
+  margin-bottom: 4px;
+}
+
+.memory-row {
+  font-size: 10px;
+  opacity: 0.75;
+  padding: 1px 0;
+}
+
 .relationship-label {
   font-size: 10px;
   font-weight: 600;

@@ -1,5 +1,5 @@
 import { Lot, type Diagonal } from "./Lot.ts";
-import { Sim } from "./Sim.ts";
+import { Sim, MAX_MEMORIES } from "./Sim.ts";
 import { Personality } from "./Personality.ts";
 import { GameObject } from "./GameObject.ts";
 import { OBJECT_CATALOG } from "./ObjectCatalog.ts";
@@ -45,6 +45,8 @@ export interface SaveData {
     careerId?: string | null;
     careerLevel?: number;
     promotionProgress?: number;
+    /** Optional: older saves predate the chat memory log. */
+    memories?: string[];
   }[];
   nextSimId: number;
   /** Optional: older saves predate pets. */
@@ -103,6 +105,7 @@ export function serialize(lot: Lot, sims: Sim[], nextSimId: number, funds: numbe
       careerId: s.careerId,
       careerLevel: s.careerLevel,
       promotionProgress: s.promotionProgress,
+      memories: s.memories,
     })),
     nextSimId,
     pets: pets.map((p) => ({ id: p.id, name: p.name, type: p.type, color: p.color, x: p.x, y: p.y })),
@@ -306,6 +309,7 @@ export function deserializeSims(data: SaveData): Sim[] {
     sim.careerId = s.careerId ?? null;
     sim.careerLevel = s.careerLevel ?? 0;
     sim.promotionProgress = s.promotionProgress ?? 0;
+    sim.memories = (s.memories ?? []).slice(-MAX_MEMORIES);
     return sim;
   });
 }

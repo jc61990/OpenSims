@@ -75,3 +75,66 @@ export function inverseFamilyRelation(relation: FamilyRelation): FamilyRelation 
   if (relation === "child") return "parent";
   return relation;
 }
+
+// A rough "how good is this tier" ordering, used only to decide whether a
+// chat-ending tier change reads as an upgrade or a downgrade for memory
+// flavor text — not a claim that Crush/Sweetheart are strictly "better"
+// than Best Friend on the same axis, just a practical ordering for prose.
+const TIER_RANK: Record<RelationshipLabel, number> = {
+  Enemy: 0,
+  Rival: 1,
+  Acquaintance: 2,
+  Friend: 3,
+  "Best Friend": 4,
+  Crush: 5,
+  Sweetheart: 6,
+};
+
+/**
+ * Flavor text for one Sim's memory log entry (Sim.ts's `memories`),
+ * summarizing a single completed chat from that Sim's own point of view. A
+ * tier change (crossing into/out of Friend, Sweetheart, etc.) is the more
+ * memorable event, so it takes priority over the raw relationship delta
+ * when one happened during the chat.
+ */
+export function describeChatMemory(
+  partnerName: string,
+  oldLabel: RelationshipLabel,
+  newLabel: RelationshipLabel,
+  relationshipDelta: number,
+): string {
+  if (newLabel !== oldLabel) {
+    const improved = TIER_RANK[newLabel] > TIER_RANK[oldLabel];
+    if (improved) {
+      switch (newLabel) {
+        case "Sweetheart":
+          return `Became ${partnerName}'s sweetheart.`;
+        case "Crush":
+          return `Developed a crush on ${partnerName}.`;
+        case "Best Friend":
+          return `Became best friends with ${partnerName}.`;
+        case "Friend":
+          return `Became friends with ${partnerName}.`;
+        default:
+          return `Started to patch things up with ${partnerName}.`;
+      }
+    }
+    switch (newLabel) {
+      case "Enemy":
+        return `Became enemies with ${partnerName}.`;
+      case "Rival":
+        return `Became rivals with ${partnerName}.`;
+      case "Best Friend":
+        return `The spark faded with ${partnerName}.`;
+      case "Friend":
+        return `Things cooled off with ${partnerName}.`;
+      default:
+        return `Drifted apart from ${partnerName}.`;
+    }
+  }
+  if (relationshipDelta >= 8) return `Really hit it off with ${partnerName}.`;
+  if (relationshipDelta > 0) return `Had a nice chat with ${partnerName}.`;
+  if (relationshipDelta <= -8) return `Clashed with ${partnerName}.`;
+  if (relationshipDelta < 0) return `Had an awkward conversation with ${partnerName}.`;
+  return `Chatted with ${partnerName}.`;
+}
