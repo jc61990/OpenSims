@@ -346,7 +346,7 @@ export class IsoRenderer {
     g.circle(center.x + faceDx - 2, headY, 1).fill(0x2a2018);
     g.circle(center.x + faceDx + 2, headY, 1).fill(0x2a2018);
 
-    if (sim.state === "using" || sim.state === "socializing") {
+    if (sim.state === "using" || sim.state === "socializing" || sim.state === "petting") {
       g.circle(center.x + 12, headY - 10, 3).fill(0xffe066);
     }
   }

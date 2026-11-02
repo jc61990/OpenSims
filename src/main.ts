@@ -458,7 +458,7 @@ async function main(): Promise<void> {
     if (simMinutes > 0) {
       for (const sim of sims) sim.update(simMinutes, lot);
       for (const pet of pets) pet.update(simMinutes, lot);
-      updateAI(sims, lot);
+      updateAI(sims, lot, pets);
       updateJobs(
         sims,
         clock,

@@ -5,8 +5,9 @@ import { TRAIT_FOR_MOTIVE } from "./types.ts";
 import { compatibility, type FamilyRelation } from "./Relationships.ts";
 import type { Lot } from "./Lot.ts";
 import type { GameObject, Interaction } from "./GameObject.ts";
+import type { Pet } from "./Pet.ts";
 
-export type SimState = "idle" | "walking" | "using" | "socializing" | "atWork";
+export type SimState = "idle" | "walking" | "using" | "socializing" | "petting" | "atWork";
 
 const WALK_SPEED_TILES_PER_MINUTE = 6;
 const SOCIAL_GAIN_PER_MINUTE = 6;
@@ -20,6 +21,9 @@ const ROMANCE_GAIN_PER_MINUTE = 0.15;
 const ROMANCE_FRIENDSHIP_THRESHOLD = 20;
 const MIN_RELATIONSHIP = -100;
 const MAX_RELATIONSHIP = 100;
+const PET_FUN_GAIN_PER_MINUTE = 8;
+const PET_SOCIAL_GAIN_PER_MINUTE = 2;
+const PET_DURATION_MINUTES = 15;
 
 export class Sim {
   readonly id: number;
@@ -50,6 +54,9 @@ export class Sim {
 
   socialPartner: Sim | null = null;
   private socialElapsed = 0;
+
+  currentPet: Pet | null = null;
+  private petElapsed = 0;
 
   constructor(id: number, name: string, color: number, x: number, y: number, personality?: Personality) {
     this.id = id;
@@ -171,10 +178,29 @@ export class Sim {
     this.socialPartner = null;
   }
 
+  startPetting(pet: Pet): void {
+    this.state = "petting";
+    this.currentPet = pet;
+    this.petElapsed = 0;
+    this.currentAction = `Petting ${pet.name}`;
+    this.facing = { dx: pet.gridX - this.gridX, dy: pet.gridY - this.gridY };
+    pet.facing = { dx: this.gridX - pet.gridX, dy: this.gridY - pet.gridY };
+  }
+
+  private stopPetting(): void {
+    if (this.currentPet) {
+      this.currentPet.occupiedBy = null;
+      this.currentPet = null;
+    }
+    this.state = "idle";
+    this.currentAction = "Idle";
+  }
+
   /** Cancel whatever the sim is currently doing and return to idle. */
   interrupt(): void {
     if (this.state === "using") this.stopUsing();
     else if (this.state === "socializing") this.stopSocializing();
+    else if (this.state === "petting") this.stopPetting();
     this.path = [];
     this.onArrive = null;
     this.state = "idle";
@@ -193,6 +219,9 @@ export class Sim {
         break;
       case "socializing":
         this.stepSocializing(simMinutes);
+        break;
+      case "petting":
+        this.stepPetting(simMinutes);
         break;
       case "idle":
       case "atWork":
@@ -285,6 +314,19 @@ export class Sim {
     }
     if (this.socialElapsed >= SOCIAL_DURATION_MINUTES || this.motives.get("social") >= 95) {
       this.stopSocializing();
+    }
+  }
+
+  private stepPetting(simMinutes: number): void {
+    if (!this.currentPet) {
+      this.state = "idle";
+      return;
+    }
+    this.petElapsed += simMinutes;
+    this.motives.add("fun", PET_FUN_GAIN_PER_MINUTE * this.personality.multiplier("playful") * simMinutes);
+    this.motives.add("social", PET_SOCIAL_GAIN_PER_MINUTE * simMinutes);
+    if (this.petElapsed >= PET_DURATION_MINUTES || this.motives.get("fun") >= 95) {
+      this.stopPetting();
     }
   }
 }

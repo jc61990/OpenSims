@@ -1,5 +1,6 @@
 import { findPath, type GridPoint } from "../engine/Pathfinding.ts";
 import type { Lot } from "./Lot.ts";
+import type { Sim } from "./Sim.ts";
 
 export type PetType = "dog" | "cat";
 export type PetState = "idle" | "walking";
@@ -26,6 +27,8 @@ export class Pet {
   facing: { dx: number; dy: number } = { dx: 0, dy: 1 };
   state: PetState = "idle";
   path: GridPoint[] = [];
+  /** The Sim currently petting it, if any — held still and unavailable to others until they finish. */
+  occupiedBy: Sim | null = null;
   private idleMinutes = 0;
   private nextWanderAt: number;
 
@@ -47,7 +50,12 @@ export class Pet {
     return Math.round(this.y);
   }
 
+  isFree(): boolean {
+    return this.occupiedBy === null;
+  }
+
   update(simMinutes: number, lot: Lot): void {
+    if (this.occupiedBy) return; // held still while being petted
     if (this.state === "walking") {
       this.stepWalk(simMinutes, lot);
       return;

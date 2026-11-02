@@ -1,6 +1,7 @@
 import type { Sim } from "./Sim.ts";
 import type { Lot } from "./Lot.ts";
 import type { GameObject } from "./GameObject.ts";
+import type { Pet } from "./Pet.ts";
 import { MOTIVE_TYPES, type MotiveType } from "./types.ts";
 
 const URGENCY_THRESHOLD = -10;
@@ -31,7 +32,7 @@ function mostUrgentForSim(sim: Sim): MotiveType | null {
 }
 
 /** Runs one autonomy pass: idle sims with an urgent motive go decide what to do. */
-export function updateAI(sims: Sim[], lot: Lot): void {
+export function updateAI(sims: Sim[], lot: Lot, pets: Pet[] = []): void {
   for (const sim of sims) {
     if (sim.state !== "idle") continue;
     const urgent = mostUrgentForSim(sim);
@@ -39,6 +40,8 @@ export function updateAI(sims: Sim[], lot: Lot): void {
 
     if (urgent === "social") {
       tryStartSocial(sim, sims, lot);
+    } else if (urgent === "fun" && tryPetNearby(sim, pets, lot)) {
+      // handled — walking to pet a free, idle pet
     } else {
       tryUseObject(sim, urgent, lot);
     }
@@ -92,6 +95,31 @@ function findAdjacentWalkable(lot: Lot, cx: number, cy: number, fromX: number, f
     }
   }
   return best;
+}
+
+/** Walks to and starts petting the nearest free, idle pet. Returns true once a walk is underway. */
+function tryPetNearby(sim: Sim, pets: Pet[], lot: Lot): boolean {
+  let best: Pet | null = null;
+  let bestDist = Infinity;
+  for (const pet of pets) {
+    if (!pet.isFree() || pet.state !== "idle") continue;
+    const d = distance(sim.x, sim.y, pet.x, pet.y);
+    if (d < bestDist) {
+      bestDist = d;
+      best = pet;
+    }
+  }
+  if (!best) return false;
+
+  const target = best;
+  const spot = findAdjacentWalkable(lot, target.gridX, target.gridY, sim.x, sim.y);
+  if (!spot) return false;
+
+  return sim.walkTo(lot, spot.x, spot.y, () => {
+    if (!target.isFree()) return; // someone beat us to it; try again next tick
+    sim.startPetting(target);
+    target.occupiedBy = sim;
+  });
 }
 
 function tryStartSocial(sim: Sim, sims: Sim[], lot: Lot): void {
