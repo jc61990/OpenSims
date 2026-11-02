@@ -14,6 +14,7 @@ import {
   saveToSlot,
   loadFromSlot,
   deleteSaveSlot,
+  renameSaveSlot,
   getLastActiveSlot,
   setLastActiveSlot,
   deserializeLot,
@@ -302,6 +303,14 @@ async function main(): Promise<void> {
         setLastActiveSlot(null);
         hud.setActiveSlotName(null);
       }
+    },
+    onRenameSlot: (oldName, newName) => {
+      const renamed = renameSaveSlot(oldName, newName);
+      if (renamed && oldName === activeSlotName) {
+        activeSlotName = newName;
+        hud.setActiveSlotName(newName);
+      }
+      return renamed;
     },
     onSetCareer: (careerId) => {
       const sim = sims.find((s) => s.id === selectedSimId);

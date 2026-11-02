@@ -38,6 +38,8 @@ export interface HUDCallbacks {
   /** Loads a slot and makes it active — reloads the page to apply it. */
   onLoadSlot: (name: string) => void;
   onDeleteSlot: (name: string) => void;
+  /** Renames a slot in place. Returns false (and leaves it unrenamed) on a name collision. */
+  onRenameSlot: (oldName: string, newName: string) => boolean;
   onSetCareer: (careerId: string | null) => void;
   /** Fired once the Create Sim modal is submitted; placement mode arms right after. */
   onCreateSim: (data: NewSimData) => void;
@@ -544,6 +546,18 @@ export class HUD {
       loadBtn.className = "mode-btn";
       loadBtn.textContent = "Load";
       loadBtn.onclick = () => this.callbacks.onLoadSlot(name);
+      const renameBtn = document.createElement("button");
+      renameBtn.className = "mode-btn";
+      renameBtn.textContent = "Rename";
+      renameBtn.onclick = () => {
+        const newName = window.prompt("Rename household:", name)?.trim();
+        if (!newName || newName === name) return;
+        if (!this.callbacks.onRenameSlot(name, newName)) {
+          window.alert(`A household named "${newName}" already exists.`);
+          return;
+        }
+        this.refreshSaveSlotsList();
+      };
       const deleteBtn = document.createElement("button");
       deleteBtn.className = "mode-btn";
       deleteBtn.textContent = "Delete";
@@ -555,6 +569,7 @@ export class HUD {
       };
       row.appendChild(info);
       row.appendChild(loadBtn);
+      row.appendChild(renameBtn);
       row.appendChild(deleteBtn);
       this.saveSlotsListEl.appendChild(row);
     }

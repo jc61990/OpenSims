@@ -168,6 +168,33 @@ export function deleteSaveSlot(name: string): void {
   localStorage.setItem(SLOTS_KEY, JSON.stringify(listSaveSlots().filter((n) => n !== name)));
 }
 
+/**
+ * Renames a slot in place: moves its stored data to the new key, keeps its
+ * position in the slot list (rather than appending at the end the way
+ * delete-and-resave-as-new would), and carries the last-active pointer
+ * forward if this was the active slot. Returns false (no-op) if oldName
+ * doesn't exist or newName collides with a different existing slot.
+ */
+export function renameSaveSlot(oldName: string, newName: string): boolean {
+  if (oldName === newName) return true;
+  const slots = listSaveSlots();
+  const idx = slots.indexOf(oldName);
+  if (idx === -1) return false;
+  if (slots.includes(newName)) return false;
+
+  const raw = localStorage.getItem(slotStorageKey(oldName));
+  if (raw === null) return false;
+  localStorage.setItem(slotStorageKey(newName), raw);
+  localStorage.removeItem(slotStorageKey(oldName));
+
+  const renamed = [...slots];
+  renamed[idx] = newName;
+  localStorage.setItem(SLOTS_KEY, JSON.stringify(renamed));
+
+  if (getLastActiveSlot() === oldName) setLastActiveSlot(newName);
+  return true;
+}
+
 export interface SlotMeta {
   name: string;
   /** null for a slot migrated from the pre-metadata legacy save, or one that failed to load. */
