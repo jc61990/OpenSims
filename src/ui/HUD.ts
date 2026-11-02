@@ -10,7 +10,14 @@ import {
 import { OBJECT_CATALOG } from "../game/ObjectCatalog.ts";
 import { CAREER_TRACKS } from "../game/Job.ts";
 import { getBadStreak } from "../game/Jobs.ts";
-import { relationshipLabel, RELATIONSHIP_LABEL_COLORS } from "../game/Relationships.ts";
+import {
+  relationshipLabel,
+  RELATIONSHIP_LABEL_COLORS,
+  FAMILY_RELATION_LABELS,
+  FAMILY_RELATION_COLORS,
+  type RelationshipLabel,
+  type FamilyRelation,
+} from "../game/Relationships.ts";
 import { listSaveSlotsWithMeta, type SlotMeta } from "../game/SaveGame.ts";
 import { formatMinuteOfDay, type SimSpeed } from "../engine/Clock.ts";
 import type { Sim } from "../game/Sim.ts";
@@ -31,6 +38,8 @@ export interface HUDCallbacks {
   onRemoveSim: () => void;
   /** Arms movesim mode for the currently selected Sim; next tile click relocates them. */
   onMoveSim: () => void;
+  /** Sets simId's family tie to otherId (and the inverse on otherId automatically). */
+  onSetFamilyRelation: (simId: number, otherId: number, relation: FamilyRelation) => void;
   onSave: () => void;
   onResetSave: () => void;
   /** Saves the current game state as a new (or overwritten) named slot and makes it active. */
@@ -69,6 +78,17 @@ export class HUD {
   private motiveRowsEl!: HTMLElement;
   private traitRowsEl!: HTMLElement;
   private relationshipsEl!: HTMLElement;
+  // Which Sim the relationship rows currently reflect, and the live DOM refs
+  // for each row — so renderSim (called every animation frame) can update
+  // them in place instead of wiping relationshipsEl.innerHTML every call.
+  // That wipe-and-rebuild was harmless while the section was read-only, but
+  // the family-tie <select> it now contains would otherwise get torn out
+  // from under a player mid-click, ~60 times a second.
+  private relationshipsSimId: number | null = null;
+  private relationshipRows = new Map<
+    number,
+    { row: HTMLElement; barFill: HTMLElement; label: HTMLElement; familySelect: HTMLSelectElement }
+  >();
   private careerEl!: HTMLElement;
   private actionLabelEl!: HTMLElement;
   private clockEl!: HTMLElement;
@@ -689,7 +709,7 @@ export class HUD {
     this.currentSim = sim;
     if (!sim) {
       this.actionLabelEl.textContent = "";
-      this.relationshipsEl.innerHTML = "";
+      this.clearRelationships();
       for (const item of this.careerEl.querySelectorAll(".career-item")) item.classList.remove("active");
       return;
     }
@@ -712,24 +732,7 @@ export class HUD {
       fill.style.width = `${(traits[t as TraitType] / 10) * 100}%`;
     }
 
-    this.relationshipsEl.innerHTML = "";
-    const others = allSims.filter((s) => s.id !== sim.id);
-    if (others.length > 0) {
-      const heading = document.createElement("div");
-      heading.className = "section-heading";
-      heading.textContent = "Relationships";
-      this.relationshipsEl.appendChild(heading);
-      for (const other of others) {
-        const value = sim.getRelationship(other.id);
-        const romance = sim.getRomance(other.id);
-        const label = relationshipLabel(value, romance);
-        const row = document.createElement("div");
-        row.className = "motive-row";
-        const pct = ((value + 100) / 200) * 100;
-        row.innerHTML = `<span class="motive-label">${other.name}</span><div class="motive-bar"><div class="motive-bar-fill" style="width:${pct}%;background:${motiveColor(value)}"></div></div><span class="relationship-label" style="color:${RELATIONSHIP_LABEL_COLORS[label]}">${label}</span>`;
-        this.relationshipsEl.appendChild(row);
-      }
-    }
+    this.renderRelationships(sim, allSims.filter((s) => s.id !== sim.id));
 
     const careerItems = this.careerEl.querySelectorAll<HTMLElement>(".career-item");
     for (const item of careerItems) {
@@ -754,5 +757,92 @@ export class HUD {
     }
 
     this.actionLabelEl.textContent = sim.currentAction;
+  }
+
+  private clearRelationships(): void {
+    this.relationshipsEl.innerHTML = "";
+    this.relationshipRows.clear();
+    this.relationshipsSimId = null;
+  }
+
+  private static readonly FAMILY_OPTIONS: [FamilyRelation, string][] = [
+    ["none", "— Family tie —"],
+    ["spouse", "Spouse"],
+    ["sibling", "Sibling"],
+    ["parent", "Parent of"],
+    ["child", "Child of"],
+  ];
+
+  /**
+   * Builds (or incrementally updates) the relationship rows for `sim` against
+   * `others`. renderSim calls this every animation frame, so a full rebuild
+   * only happens when the selected Sim or the set of other Sims changes —
+   * otherwise existing DOM nodes are mutated in place, so the family-tie
+   * <select> survives being mid-interaction (open, focused) across frames.
+   */
+  private renderRelationships(sim: Sim, others: Sim[]): void {
+    const sameSet =
+      sim.id === this.relationshipsSimId &&
+      others.length === this.relationshipRows.size &&
+      others.every((o) => this.relationshipRows.has(o.id));
+
+    if (!sameSet) {
+      this.relationshipsEl.innerHTML = "";
+      this.relationshipRows.clear();
+      this.relationshipsSimId = sim.id;
+
+      if (others.length > 0) {
+        const heading = document.createElement("div");
+        heading.className = "section-heading";
+        heading.textContent = "Relationships";
+        this.relationshipsEl.appendChild(heading);
+      }
+
+      for (const other of others) {
+        const row = document.createElement("div");
+        row.className = "motive-row";
+        row.innerHTML = `<span class="motive-label">${other.name}</span><div class="motive-bar"><div class="motive-bar-fill"></div></div><span class="relationship-label"></span>`;
+        this.relationshipsEl.appendChild(row);
+        const barFill = row.querySelector<HTMLElement>(".motive-bar-fill")!;
+        const label = row.querySelector<HTMLElement>(".relationship-label")!;
+
+        const familyRow = document.createElement("div");
+        familyRow.className = "family-row";
+        const familySelect = document.createElement("select");
+        familySelect.className = "family-select";
+        for (const [value, text] of HUD.FAMILY_OPTIONS) {
+          const opt = document.createElement("option");
+          opt.value = value;
+          opt.textContent = text;
+          familySelect.appendChild(opt);
+        }
+        const otherId = other.id;
+        familySelect.onchange = () => {
+          this.callbacks.onSetFamilyRelation(sim.id, otherId, familySelect.value as FamilyRelation);
+        };
+        familyRow.appendChild(familySelect);
+        this.relationshipsEl.appendChild(familyRow);
+
+        this.relationshipRows.set(other.id, { row, barFill, label, familySelect });
+      }
+    }
+
+    for (const other of others) {
+      const refs = this.relationshipRows.get(other.id);
+      if (!refs) continue;
+      const value = sim.getRelationship(other.id);
+      const romance = sim.getRomance(other.id);
+      const family = sim.getFamilyRelation(other.id);
+      const tierLabel = family !== "none" ? FAMILY_RELATION_LABELS[family] : relationshipLabel(value, romance);
+      const labelColor =
+        family !== "none" ? FAMILY_RELATION_COLORS[family] : RELATIONSHIP_LABEL_COLORS[tierLabel as RelationshipLabel];
+      const pct = ((value + 100) / 200) * 100;
+
+      refs.barFill.style.width = `${pct}%`;
+      refs.barFill.style.background = motiveColor(value);
+      refs.label.textContent = tierLabel;
+      refs.label.style.color = labelColor;
+      if (refs.familySelect.value !== family) refs.familySelect.value = family;
+    }
   }
 }

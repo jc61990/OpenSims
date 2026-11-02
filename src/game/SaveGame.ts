@@ -4,6 +4,7 @@ import { Personality } from "./Personality.ts";
 import { GameObject } from "./GameObject.ts";
 import { OBJECT_CATALOG } from "./ObjectCatalog.ts";
 import { MOTIVE_TYPES, TRAIT_TYPES, type MotiveType, type TraitType } from "./types.ts";
+import type { FamilyRelation } from "./Relationships.ts";
 
 // The original single fixed-key save, from before named slots existed.
 // Nothing writes here anymore — it's only read once, by migrateLegacySave.
@@ -39,6 +40,7 @@ export interface SaveData {
     personality?: Partial<Record<TraitType, number>>;
     relationships?: [number, number][];
     romances?: [number, number][];
+    familyRelations?: [number, FamilyRelation][];
     careerId?: string | null;
     careerLevel?: number;
     promotionProgress?: number;
@@ -93,6 +95,7 @@ export function serialize(lot: Lot, sims: Sim[], nextSimId: number, funds: numbe
       personality: s.personality.snapshot(),
       relationships: s.relationshipEntries(),
       romances: s.romanceEntries(),
+      familyRelations: s.familyRelationEntries(),
       careerId: s.careerId,
       careerLevel: s.careerLevel,
       promotionProgress: s.promotionProgress,
@@ -282,6 +285,9 @@ export function deserializeSims(data: SaveData): Sim[] {
     }
     for (const [otherId, value] of s.romances ?? []) {
       sim.adjustRomance(otherId, value);
+    }
+    for (const [otherId, relation] of s.familyRelations ?? []) {
+      sim.setFamilyRelationRaw(otherId, relation);
     }
     sim.careerId = s.careerId ?? null;
     sim.careerLevel = s.careerLevel ?? 0;

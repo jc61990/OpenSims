@@ -2,7 +2,7 @@ import { Motives } from "./Motives.ts";
 import { Personality } from "./Personality.ts";
 import { findPath, type GridPoint } from "../engine/Pathfinding.ts";
 import { TRAIT_FOR_MOTIVE } from "./types.ts";
-import { compatibility } from "./Relationships.ts";
+import { compatibility, type FamilyRelation } from "./Relationships.ts";
 import type { Lot } from "./Lot.ts";
 import type { GameObject, Interaction } from "./GameObject.ts";
 
@@ -32,6 +32,7 @@ export class Sim {
   personality: Personality;
   private relationships = new Map<number, number>();
   private romances = new Map<number, number>();
+  private familyRelations = new Map<number, FamilyRelation>();
   state: SimState = "idle";
   currentAction = "Idle";
   /** The career track's id (see game/Job.ts), or null if unemployed. */
@@ -84,6 +85,25 @@ export class Sim {
 
   romanceEntries(): [number, number][] {
     return [...this.romances.entries()];
+  }
+
+  getFamilyRelation(simId: number): FamilyRelation {
+    return this.familyRelations.get(simId) ?? "none";
+  }
+
+  /**
+   * Sets only this Sim's side of the tie. Callers that want a consistent
+   * pair (e.g. A's "parent" implying B's "child") should also set the
+   * inverse on the other Sim — see Relationships.inverseFamilyRelation and
+   * main.ts's setFamilyRelation, which does both sides at once.
+   */
+  setFamilyRelationRaw(simId: number, relation: FamilyRelation): void {
+    if (relation === "none") this.familyRelations.delete(simId);
+    else this.familyRelations.set(simId, relation);
+  }
+
+  familyRelationEntries(): [number, FamilyRelation][] {
+    return [...this.familyRelations.entries()];
   }
 
   /** Quit (null) or start fresh at level 0 of a new career track. */
@@ -252,8 +272,15 @@ export class Sim {
       this.adjustRelationship(this.socialPartner.id, relGain);
 
       if (compat > 0 && this.getRelationship(this.socialPartner.id) >= ROMANCE_FRIENDSHIP_THRESHOLD) {
-        const romanceGain = ROMANCE_GAIN_PER_MINUTE * this.personality.multiplier("playful") * compat * simMinutes;
-        this.adjustRomance(this.socialPartner.id, romanceGain);
+        const family = this.getFamilyRelation(this.socialPartner.id);
+        // Spouses already have romance by definition, and strangers (no tie
+        // set) can develop it normally; a sibling/parent/child tie is the
+        // one case that should never accrue romance, however compatible the
+        // personalities are.
+        if (family !== "sibling" && family !== "parent" && family !== "child") {
+          const romanceGain = ROMANCE_GAIN_PER_MINUTE * this.personality.multiplier("playful") * compat * simMinutes;
+          this.adjustRomance(this.socialPartner.id, romanceGain);
+        }
       }
     }
     if (this.socialElapsed >= SOCIAL_DURATION_MINUTES || this.motives.get("social") >= 95) {

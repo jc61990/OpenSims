@@ -10,6 +10,7 @@ import { SimClock } from "./engine/Clock.ts";
 import { IsoRenderer } from "./render/IsoRenderer.ts";
 import { HUD, formatMoney, type Mode, type NewSimData } from "./ui/HUD.ts";
 import { SIM_COLOR_POOL, TRAIT_TYPES } from "./game/types.ts";
+import { inverseFamilyRelation, type FamilyRelation } from "./game/Relationships.ts";
 import {
   saveToSlot,
   loadFromSlot,
@@ -196,14 +197,14 @@ function createStarterSims(): Sim[] {
   const bella = new Personality({ neat: 5, outgoing: 8, active: 5, playful: 7, nice: 6 });
   const mortimer = new Personality({ neat: 8, outgoing: 3, active: 4, playful: 4, nice: 6 });
   const larry = new Personality({ neat: 7, outgoing: 9, active: 4, playful: 6, nice: 3 });
+  const bellaGoth = new Sim(1, "Bella Goth", colorForId(1), 7, 6, bella);
+  const mortimerGoth = new Sim(2, "Mortimer Goth", colorForId(2), 7, 8, mortimer);
+  bellaGoth.setFamilyRelationRaw(mortimerGoth.id, "spouse");
+  mortimerGoth.setFamilyRelationRaw(bellaGoth.id, "spouse");
   const larryLubin = new Sim(3, "Larry Lubin", colorForId(3), 11, 5, larry);
   larryLubin.careerId = "politics";
   larryLubin.careerLevel = 2; // Mayor — top of the Politics track
-  return [
-    new Sim(1, "Bella Goth", colorForId(1), 7, 6, bella),
-    new Sim(2, "Mortimer Goth", colorForId(2), 7, 8, mortimer),
-    larryLubin,
-  ];
+  return [bellaGoth, mortimerGoth, larryLubin];
 }
 
 async function main(): Promise<void> {
@@ -249,6 +250,11 @@ async function main(): Promise<void> {
     hud.renderSimTabs(sims, selectedSimId);
   }
 
+  function setFamilyRelation(simA: Sim, simB: Sim, relation: FamilyRelation): void {
+    simA.setFamilyRelationRaw(simB.id, relation);
+    simB.setFamilyRelationRaw(simA.id, inverseFamilyRelation(relation));
+  }
+
   const hud = new HUD(appRoot, {
     onSpeedChange: (speed) => {
       clock.speed = speed;
@@ -271,6 +277,13 @@ async function main(): Promise<void> {
       if (selectedSimId === null) return;
       pendingMoveSimId = selectedSimId;
       setMode("movesim");
+    },
+    onSetFamilyRelation: (simId, otherId, relation) => {
+      const sim = sims.find((s) => s.id === simId);
+      const other = sims.find((s) => s.id === otherId);
+      if (!sim || !other) return;
+      setFamilyRelation(sim, other, relation);
+      hud.renderSim(sim, sims);
     },
     onSave: () => {
       if (!activeSlotName) {

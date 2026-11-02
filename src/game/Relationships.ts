@@ -45,3 +45,33 @@ export const RELATIONSHIP_LABEL_COLORS: Record<RelationshipLabel, string> = {
   Rival: "#e0a055",
   Enemy: "#e05555",
 };
+
+/**
+ * A fixed household/family tie, independent of the emotional scalars above —
+ * set explicitly by the player rather than derived from behavior. Takes
+ * precedence over the emotional tier label when shown in the HUD: a spouse
+ * is a spouse regardless of how the friendship/romance numbers are doing
+ * that day. Parent and child are each other's inverse (see
+ * inverseFamilyRelation); spouse and sibling are their own inverse.
+ */
+export type FamilyRelation = "none" | "spouse" | "sibling" | "parent" | "child";
+
+export const FAMILY_RELATION_LABELS: Record<Exclude<FamilyRelation, "none">, string> = {
+  spouse: "Spouse",
+  sibling: "Sibling",
+  parent: "Parent",
+  child: "Child",
+};
+
+export const FAMILY_RELATION_COLORS: Record<Exclude<FamilyRelation, "none">, string> = {
+  spouse: "#ffd24a",
+  sibling: "#6ab0e0",
+  parent: "#6ab0e0",
+  child: "#6ab0e0",
+};
+
+export function inverseFamilyRelation(relation: FamilyRelation): FamilyRelation {
+  if (relation === "parent") return "child";
+  if (relation === "child") return "parent";
+  return relation;
+}
