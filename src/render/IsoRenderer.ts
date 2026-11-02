@@ -2,6 +2,7 @@ import { Application, BlurFilter, Container, Graphics, Text, TextStyle } from "p
 import { gridToScreen, screenToGrid } from "../engine/IsoMath.ts";
 import { tileCorners, drawWallSegment, drawWallPost, drawDoorway, shade } from "./IsoDraw.ts";
 import { drawObject } from "./ObjectArt.ts";
+import { computeDayNightTint } from "./DayNight.ts";
 import type { Lot } from "../game/Lot.ts";
 import type { Sim } from "../game/Sim.ts";
 import type { Pet } from "../game/Pet.ts";
@@ -30,12 +31,14 @@ export class IsoRenderer {
   private shadowLayer!: Container;
   private shadowGfx!: Graphics;
   private scene!: Graphics;
+  private tintGfx!: Graphics;
   private labelsLayer!: Container;
   private simLabels = new Map<number, Text>();
   private petLabels = new Map<number, Text>();
   private lot!: Lot;
   private getSims!: () => Sim[];
   private getPets: () => Pet[] = () => [];
+  private getMinuteOfDay: () => number = () => 12 * 60;
   private callbacks: RendererCallbacks = {};
   selectedSimId: number | null = null;
 
@@ -43,10 +46,18 @@ export class IsoRenderer {
   private dragMoved = false;
   private lastPointer = { x: 0, y: 0 };
 
-  async init(holder: HTMLElement, lot: Lot, getSims: () => Sim[], getPets: () => Pet[], callbacks: RendererCallbacks) {
+  async init(
+    holder: HTMLElement,
+    lot: Lot,
+    getSims: () => Sim[],
+    getPets: () => Pet[],
+    getMinuteOfDay: () => number,
+    callbacks: RendererCallbacks,
+  ) {
     this.lot = lot;
     this.getSims = getSims;
     this.getPets = getPets;
+    this.getMinuteOfDay = getMinuteOfDay;
     this.callbacks = callbacks;
 
     this.app = new Application();
@@ -81,6 +92,12 @@ export class IsoRenderer {
 
     this.labelsLayer = new Container();
     this.world.addChild(this.labelsLayer);
+
+    // A fixed-to-viewport overlay for the day/night ambient wash — a sibling
+    // of `world` (not a child of it) so panning/zooming the camera never
+    // moves or scales it; it always covers exactly what's on screen.
+    this.tintGfx = new Graphics();
+    this.app.stage.addChild(this.tintGfx);
 
     this.setupPointerHandlers();
     this.app.ticker.add(() => this.render());
@@ -275,6 +292,12 @@ export class IsoRenderer {
 
     this.updateLabels(sims);
     this.updatePetLabels(pets);
+
+    this.tintGfx.clear();
+    const tint = computeDayNightTint(this.getMinuteOfDay());
+    if (tint.alpha > 0) {
+      this.tintGfx.rect(0, 0, this.app.renderer.width, this.app.renderer.height).fill({ color: tint.color, alpha: tint.alpha });
+    }
   }
 
   private drawFloors(): void {
@@ -345,6 +368,17 @@ export class IsoRenderer {
     const faceDx = Math.sign(sim.facing.dx) * 2.5;
     g.circle(center.x + faceDx - 2, headY, 1).fill(0x2a2018);
     g.circle(center.x + faceDx + 2, headY, 1).fill(0x2a2018);
+
+    // Mouth — curves into a smile or frown based on overall mood, so a Sim's
+    // face actually reflects how they're doing rather than staying neutral.
+    const moodT = Math.max(-1, Math.min(1, sim.motives.mood / 60));
+    const mouthX = center.x + faceDx;
+    const mouthY = headY + 3.3;
+    const mouthHalfWidth = 2.1;
+    const mouthCurve = moodT * 2;
+    g.moveTo(mouthX - mouthHalfWidth, mouthY)
+      .quadraticCurveTo(mouthX, mouthY + mouthCurve, mouthX + mouthHalfWidth, mouthY)
+      .stroke({ width: 1, color: 0x2a2018 });
 
     if (sim.state === "using" || sim.state === "socializing" || sim.state === "petting") {
       g.circle(center.x + 12, headY - 10, 3).fill(0xffe066);

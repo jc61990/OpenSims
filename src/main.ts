@@ -389,7 +389,7 @@ async function main(): Promise<void> {
   hud.setActiveSlotName(activeSlotName);
   hud.renderSimTabs(sims, selectedSimId);
 
-  await renderer.init(canvasHolder, lot, () => sims, () => pets, {
+  await renderer.init(canvasHolder, lot, () => sims, () => pets, () => clock.minuteOfDay, {
     onTileClick: (gx, gy, fracX, fracY) => {
       if (mode === "build") {
         toggleNearestWall(lot, gx, gy, fracX, fracY);
