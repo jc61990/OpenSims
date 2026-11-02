@@ -19,7 +19,36 @@ npm install
 npm run dev      # start the dev server (http://localhost:5173)
 npm run build    # production build to dist/
 npm run typecheck
+npm run serve    # serve an existing dist/ build (see scripts/serve.mjs)
 ```
+
+## Deploying
+
+OpenSims has no backend and no database — it's a static Vite build, and all game state lives in the player's browser (`localStorage`), so "deploying" just means serving `dist/` to the internet.
+
+**On a Ubuntu (or other Debian-family) server**, `setup.sh` does it end to end: it asks a few questions (install directory, port, which user to run as), installs Node.js if it's missing, builds the app, and installs it as a systemd service (`opensims.service`) that starts on boot and restarts itself if it ever crashes.
+
+```bash
+git clone https://github.com/jc61990/OpenSims.git
+cd OpenSims
+sudo ./setup.sh          # interactive — press Enter to accept each default
+# sudo ./setup.sh -y      # or accept every default with no prompts at all
+```
+
+The service itself is `scripts/serve.mjs` — a small dependency-free static file server (just `node:http`, no npm packages) that serves `dist/`. It's deliberately read-only (never writes anything, since there's nothing to persist server-side), which lets the systemd unit run it fully locked down: a dedicated unprivileged `opensims` system user, `ProtectSystem=strict`, `NoNewPrivileges=true`, no write access anywhere. Picking a port below 1024 (e.g. 80) is handled by granting just `CAP_NET_BIND_SERVICE` rather than running the whole thing as root.
+
+Once installed:
+
+```bash
+systemctl status opensims     # is it running?
+journalctl -u opensims -f     # follow its logs
+systemctl restart opensims    # e.g. after a `git pull` + re-running setup.sh to rebuild
+sudo ./uninstall.sh           # tear it all back down (asks before deleting anything)
+```
+
+`sudo ./setup.sh` is also how you deploy an update: `git pull` in the install directory, then re-run it — it rebuilds in place and restarts the service rather than failing on an existing install.
+
+Anywhere else (or if you'd rather manage the process yourself), `npm run build` and point any static file server — nginx, Caddy, `npx serve dist`, GitHub Pages, Netlify, S3 — at the resulting `dist/` folder; nothing about the app assumes it's running under `scripts/serve.mjs` specifically.
 
 ## Controls
 
