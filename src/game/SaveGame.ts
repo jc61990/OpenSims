@@ -5,6 +5,7 @@ import { GameObject } from "./GameObject.ts";
 import { OBJECT_CATALOG } from "./ObjectCatalog.ts";
 import { MOTIVE_TYPES, TRAIT_TYPES, type MotiveType, type TraitType } from "./types.ts";
 import type { FamilyRelation } from "./Relationships.ts";
+import { Pet, type PetType } from "./Pet.ts";
 
 // The original single fixed-key save, from before named slots existed.
 // Nothing writes here anymore — it's only read once, by migrateLegacySave.
@@ -46,10 +47,13 @@ export interface SaveData {
     promotionProgress?: number;
   }[];
   nextSimId: number;
+  /** Optional: older saves predate pets. */
+  pets?: { id: number; name: string; type: PetType; color: number; x: number; y: number }[];
+  nextPetId?: number;
   funds?: number;
 }
 
-export function serialize(lot: Lot, sims: Sim[], nextSimId: number, funds: number): SaveData {
+export function serialize(lot: Lot, sims: Sim[], nextSimId: number, funds: number, pets: Pet[] = [], nextPetId = 1): SaveData {
   const vWalls: boolean[] = [];
   for (let y = 0; y < lot.height; y++) {
     for (let x = 0; x <= lot.width; x++) vWalls.push(lot.getVWall(x, y));
@@ -101,6 +105,8 @@ export function serialize(lot: Lot, sims: Sim[], nextSimId: number, funds: numbe
       promotionProgress: s.promotionProgress,
     })),
     nextSimId,
+    pets: pets.map((p) => ({ id: p.id, name: p.name, type: p.type, color: p.color, x: p.x, y: p.y })),
+    nextPetId,
     funds,
   };
 }
@@ -144,8 +150,16 @@ export function listSaveSlots(): string[] {
   }
 }
 
-export function saveToSlot(name: string, lot: Lot, sims: Sim[], nextSimId: number, funds: number): void {
-  const data = serialize(lot, sims, nextSimId, funds);
+export function saveToSlot(
+  name: string,
+  lot: Lot,
+  sims: Sim[],
+  nextSimId: number,
+  funds: number,
+  pets: Pet[] = [],
+  nextPetId = 1,
+): void {
+  const data = serialize(lot, sims, nextSimId, funds, pets, nextPetId);
   data.savedAt = Date.now();
   localStorage.setItem(slotStorageKey(name), JSON.stringify(data));
   const slots = listSaveSlots();
@@ -294,4 +308,8 @@ export function deserializeSims(data: SaveData): Sim[] {
     sim.promotionProgress = s.promotionProgress ?? 0;
     return sim;
   });
+}
+
+export function deserializePets(data: SaveData): Pet[] {
+  return (data.pets ?? []).map((p) => new Pet(p.id, p.name, p.type, p.color, p.x, p.y));
 }

@@ -1,6 +1,8 @@
 import "./style.css";
 import { Lot } from "./game/Lot.ts";
 import { Sim } from "./game/Sim.ts";
+import { Pet, type PetType } from "./game/Pet.ts";
+import { PET_CATALOG, randomPetName } from "./game/PetCatalog.ts";
 import { Personality, randomPersonality } from "./game/Personality.ts";
 import { GameObject } from "./game/GameObject.ts";
 import { OBJECT_CATALOG } from "./game/ObjectCatalog.ts";
@@ -20,6 +22,7 @@ import {
   setLastActiveSlot,
   deserializeLot,
   deserializeSims,
+  deserializePets,
 } from "./game/SaveGame.ts";
 
 const LOT_WIDTH = 14;
@@ -220,6 +223,8 @@ async function main(): Promise<void> {
   const sims: Sim[] = saveData ? deserializeSims(saveData) : createStarterSims();
   let nextSimId = saveData ? saveData.nextSimId : sims.length + 1;
   let funds = saveData ? (saveData.funds ?? STARTING_FUNDS) : STARTING_FUNDS;
+  const pets: Pet[] = saveData ? deserializePets(saveData) : [];
+  let nextPetId = saveData ? (saveData.nextPetId ?? 1) : 1;
 
   let selectedSimId: number | null = sims[0]?.id ?? null;
   let mode: Mode = "live";
@@ -253,6 +258,34 @@ async function main(): Promise<void> {
   function setFamilyRelation(simA: Sim, simB: Sim, relation: FamilyRelation): void {
     simA.setFamilyRelationRaw(simB.id, relation);
     simB.setFamilyRelationRaw(simA.id, inverseFamilyRelation(relation));
+  }
+
+  function randomOpenTile(): { x: number; y: number } | null {
+    const candidates: { x: number; y: number }[] = [];
+    for (let y = 0; y < lot.height; y++) {
+      for (let x = 0; x < lot.width; x++) {
+        if (lot.isWalkableTile(x, y)) candidates.push({ x, y });
+      }
+    }
+    if (candidates.length === 0) return null;
+    return candidates[Math.floor(Math.random() * candidates.length)];
+  }
+
+  function buyPet(type: PetType): void {
+    const def = PET_CATALOG[type];
+    if (funds < def.price) {
+      hud.flashBuyStatus("Not enough funds");
+      return;
+    }
+    const tile = randomOpenTile();
+    if (!tile) {
+      hud.flashBuyStatus("No room on the lot");
+      return;
+    }
+    funds -= def.price;
+    hud.setFunds(funds);
+    pets.push(new Pet(nextPetId++, randomPetName(type), type, def.color, tile.x, tile.y));
+    hud.flashBuyStatus(`-${formatMoney(def.price)}`);
   }
 
   const hud = new HUD(appRoot, {
@@ -291,7 +324,7 @@ async function main(): Promise<void> {
         if (!name) return;
         activeSlotName = name;
       }
-      saveToSlot(activeSlotName, lot, sims, nextSimId, funds);
+      saveToSlot(activeSlotName, lot, sims, nextSimId, funds, pets, nextPetId);
       setLastActiveSlot(activeSlotName);
       hud.setActiveSlotName(activeSlotName);
     },
@@ -301,7 +334,7 @@ async function main(): Promise<void> {
     },
     onSaveAs: (name) => {
       activeSlotName = name;
-      saveToSlot(name, lot, sims, nextSimId, funds);
+      saveToSlot(name, lot, sims, nextSimId, funds, pets, nextPetId);
       setLastActiveSlot(name);
       hud.setActiveSlotName(name);
     },
@@ -347,6 +380,7 @@ async function main(): Promise<void> {
       hud.renderSimTabs(sims, selectedSimId);
       hud.renderSim(sim, sims);
     },
+    onBuyPet: (type) => buyPet(type),
   });
 
   hud.setMode(mode);
@@ -355,7 +389,7 @@ async function main(): Promise<void> {
   hud.setActiveSlotName(activeSlotName);
   hud.renderSimTabs(sims, selectedSimId);
 
-  await renderer.init(canvasHolder, lot, () => sims, {
+  await renderer.init(canvasHolder, lot, () => sims, () => pets, {
     onTileClick: (gx, gy, fracX, fracY) => {
       if (mode === "build") {
         toggleNearestWall(lot, gx, gy, fracX, fracY);
@@ -423,6 +457,7 @@ async function main(): Promise<void> {
     const simMinutes = clock.tick(dtSeconds);
     if (simMinutes > 0) {
       for (const sim of sims) sim.update(simMinutes, lot);
+      for (const pet of pets) pet.update(simMinutes, lot);
       updateAI(sims, lot);
       updateJobs(
         sims,

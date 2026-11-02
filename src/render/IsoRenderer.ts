@@ -4,6 +4,7 @@ import { tileCorners, drawWallSegment, drawWallPost, drawDoorway, shade } from "
 import { drawObject } from "./ObjectArt.ts";
 import type { Lot } from "../game/Lot.ts";
 import type { Sim } from "../game/Sim.ts";
+import type { Pet } from "../game/Pet.ts";
 
 const WALL_HEIGHT = 48;
 const FLOOR_LINE = 0x0e1420;
@@ -31,8 +32,10 @@ export class IsoRenderer {
   private scene!: Graphics;
   private labelsLayer!: Container;
   private simLabels = new Map<number, Text>();
+  private petLabels = new Map<number, Text>();
   private lot!: Lot;
   private getSims!: () => Sim[];
+  private getPets: () => Pet[] = () => [];
   private callbacks: RendererCallbacks = {};
   selectedSimId: number | null = null;
 
@@ -40,9 +43,10 @@ export class IsoRenderer {
   private dragMoved = false;
   private lastPointer = { x: 0, y: 0 };
 
-  async init(holder: HTMLElement, lot: Lot, getSims: () => Sim[], callbacks: RendererCallbacks) {
+  async init(holder: HTMLElement, lot: Lot, getSims: () => Sim[], getPets: () => Pet[], callbacks: RendererCallbacks) {
     this.lot = lot;
     this.getSims = getSims;
+    this.getPets = getPets;
     this.callbacks = callbacks;
 
     this.app = new Application();
@@ -168,8 +172,9 @@ export class IsoRenderer {
     // Sims at work are away from the lot for their shift, so they're hidden
     // from every visual layer (shadow, scene, and name label) below.
     const sims = this.getSims().filter((s) => s.state !== "atWork");
+    const pets = this.getPets();
     this.shadowGfx.clear();
-    this.drawShadows(sims);
+    this.drawShadows(sims, pets);
 
     this.scene.clear();
     const items: Drawable[] = [];
@@ -258,10 +263,18 @@ export class IsoRenderer {
       });
     }
 
+    for (const pet of pets) {
+      items.push({
+        depth: pet.x + pet.y + 0.015,
+        draw: (g) => this.drawPet(g, pet, now),
+      });
+    }
+
     items.sort((a, b) => a.depth - b.depth);
     for (const item of items) item.draw(this.scene);
 
     this.updateLabels(sims);
+    this.updatePetLabels(pets);
   }
 
   private drawFloors(): void {
@@ -278,8 +291,8 @@ export class IsoRenderer {
     }
   }
 
-  /** Soft blurred contact shadows for objects and Sims, rendered on their own filtered layer. */
-  private drawShadows(sims: Sim[]): void {
+  /** Soft blurred contact shadows for objects, Sims, and pets, rendered on their own filtered layer. */
+  private drawShadows(sims: Sim[], pets: Pet[]): void {
     for (const obj of this.lot.objects) {
       const c = gridToScreen(obj.gridX + 0.5, obj.gridY + 0.5);
       this.shadowGfx.ellipse(c.x, c.y + 3, 17, 8).fill({ color: 0x000000, alpha: 0.4 });
@@ -287,6 +300,10 @@ export class IsoRenderer {
     for (const sim of sims) {
       const c = gridToScreen(sim.x + 0.5, sim.y + 0.5);
       this.shadowGfx.ellipse(c.x, c.y + 2, 11, 5).fill({ color: 0x000000, alpha: 0.4 });
+    }
+    for (const pet of pets) {
+      const c = gridToScreen(pet.x + 0.5, pet.y + 0.5);
+      this.shadowGfx.ellipse(c.x, c.y + 1, 7, 3.5).fill({ color: 0x000000, alpha: 0.35 });
     }
   }
 
@@ -334,6 +351,44 @@ export class IsoRenderer {
     }
   }
 
+  /** A small, low quadruped silhouette — simple enough to read at a glance as "pet" rather than "furniture". */
+  private drawPet(g: Graphics, pet: Pet, now: number): void {
+    const center = gridToScreen(pet.x + 0.5, pet.y + 0.5);
+    const walking = pet.state === "walking";
+    const bob = walking ? Math.sin(now / 70 + pet.id) * 1.2 : 0;
+    const baseY = center.y - 4 + bob;
+    const faceDx = Math.sign(pet.facing.dx) || 1;
+
+    const bodyColor = pet.color;
+    const darkColor = shade(pet.color, 0.6);
+
+    // Legs — four tiny stubs under the body.
+    for (const lx of [-6, -1, 3, 7]) {
+      g.roundRect(center.x + lx, baseY + 1, 2.5, 4, 1).fill(darkColor);
+    }
+
+    // Body — a low, horizontal capsule.
+    g.roundRect(center.x - 9, baseY - 6, 18, 9, 4.5).fill(bodyColor);
+
+    // Tail, trailing opposite the facing direction.
+    g.roundRect(center.x - faceDx * 11, baseY - 7, 4, 3, 1.5).fill(bodyColor);
+
+    // Head, offset toward the facing direction.
+    const headX = center.x + faceDx * 8;
+    g.circle(headX, baseY - 6, 5).fill(bodyColor);
+
+    // Ears distinguish the two pet types at a glance: pointy for cats, small rounded droops for dogs.
+    if (pet.type === "cat") {
+      g.poly([headX - 3, baseY - 10, headX - 1, baseY - 15, headX + 1, baseY - 10]).fill(darkColor);
+      g.poly([headX + 1, baseY - 10, headX + 3, baseY - 15, headX + 5, baseY - 10]).fill(darkColor);
+    } else {
+      g.ellipse(headX - 3, baseY - 7, 2, 4).fill(darkColor);
+      g.ellipse(headX + 3, baseY - 7, 2, 4).fill(darkColor);
+    }
+
+    g.circle(headX + faceDx * 3, baseY - 6, 0.8).fill(0x1a1410);
+  }
+
   private updateLabels(sims: Sim[]): void {
     const seen = new Set<number>();
     for (const sim of sims) {
@@ -361,6 +416,37 @@ export class IsoRenderer {
       if (!seen.has(id)) {
         label.destroy();
         this.simLabels.delete(id);
+      }
+    }
+  }
+
+  private updatePetLabels(pets: Pet[]): void {
+    const seen = new Set<number>();
+    for (const pet of pets) {
+      seen.add(pet.id);
+      let label = this.petLabels.get(pet.id);
+      if (!label) {
+        label = new Text({
+          text: pet.name,
+          style: new TextStyle({
+            fill: 0xffffff,
+            fontSize: 9,
+            fontWeight: "600",
+            stroke: { color: 0x000000, width: 2.5 },
+          }),
+        });
+        label.anchor.set(0.5, 1);
+        this.labelsLayer.addChild(label);
+        this.petLabels.set(pet.id, label);
+      }
+      const center = gridToScreen(pet.x + 0.5, pet.y + 0.5);
+      label.position.set(center.x, center.y - 22);
+      label.alpha = 0.8;
+    }
+    for (const [id, label] of this.petLabels) {
+      if (!seen.has(id)) {
+        label.destroy();
+        this.petLabels.delete(id);
       }
     }
   }

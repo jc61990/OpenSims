@@ -19,6 +19,8 @@ import {
   type FamilyRelation,
 } from "../game/Relationships.ts";
 import { listSaveSlotsWithMeta, type SlotMeta } from "../game/SaveGame.ts";
+import { PET_CATALOG } from "../game/PetCatalog.ts";
+import type { PetType } from "../game/Pet.ts";
 import { formatMinuteOfDay, type SimSpeed } from "../engine/Clock.ts";
 import type { Sim } from "../game/Sim.ts";
 
@@ -54,6 +56,8 @@ export interface HUDCallbacks {
   onCreateSim: (data: NewSimData) => void;
   /** Fired once the Edit Sim modal is submitted, applying changes to an already-placed Sim. */
   onEditSim: (simId: number, data: NewSimData) => void;
+  /** Buys a pet from the Town shop; placement and the funds check happen on the caller's side. */
+  onBuyPet: (type: PetType) => void;
 }
 
 function motiveColor(value: number): string {
@@ -123,6 +127,8 @@ export class HUD {
   private promotionToastEl!: HTMLElement;
   private promotionToastTimer: ReturnType<typeof setTimeout> | null = null;
   private saveSlotsOverlay!: HTMLElement;
+  private townOverlay!: HTMLElement;
+  private townStatusEl!: HTMLElement;
   private saveSlotsListEl!: HTMLElement;
   private newSlotNameInput!: HTMLInputElement;
   private activeSlotLabelEl!: HTMLElement;
@@ -307,6 +313,10 @@ export class HUD {
     savesBtn.className = "mode-btn";
     savesBtn.textContent = "Saves";
     savesBtn.onclick = () => this.openSaveSlotsModal();
+    const townBtn = document.createElement("button");
+    townBtn.className = "mode-btn";
+    townBtn.textContent = "Town";
+    townBtn.onclick = () => this.openTownModal();
     const resetBtn = document.createElement("button");
     resetBtn.className = "mode-btn";
     resetBtn.textContent = "Reset";
@@ -317,6 +327,7 @@ export class HUD {
     };
     saveRow.appendChild(saveBtn);
     saveRow.appendChild(savesBtn);
+    saveRow.appendChild(townBtn);
     saveRow.appendChild(resetBtn);
     controlsPanel.appendChild(saveRow);
     this.saveStatusEl = document.createElement("div");
@@ -350,6 +361,7 @@ export class HUD {
 
     this.buildCreateSimModal();
     this.buildSaveSlotsModal();
+    this.buildTownModal();
   }
 
   private buildCreateSimModal(): void {
@@ -604,6 +616,76 @@ export class HUD {
     this.saveSlotsOverlay.style.display = "none";
   }
 
+  private buildTownModal(): void {
+    const overlay = document.createElement("div");
+    overlay.className = "modal-overlay";
+    overlay.style.display = "none";
+    this.townOverlay = overlay;
+
+    const modal = document.createElement("div");
+    modal.className = "panel modal-panel";
+
+    const title = document.createElement("h3");
+    title.textContent = "Town";
+    modal.appendChild(title);
+
+    const subheading = document.createElement("div");
+    subheading.className = "section-heading";
+    subheading.textContent = "Pet Shop";
+    modal.appendChild(subheading);
+
+    const shopList = document.createElement("div");
+    shopList.className = "save-slots-list";
+    for (const key of Object.keys(PET_CATALOG) as PetType[]) {
+      const def = PET_CATALOG[key];
+      const row = document.createElement("div");
+      row.className = "save-slot-row";
+      const info = document.createElement("div");
+      info.className = "save-slot-info";
+      const label = document.createElement("div");
+      label.className = "save-slot-name";
+      label.textContent = def.label;
+      const meta = document.createElement("div");
+      meta.className = "save-slot-meta";
+      meta.textContent = formatMoney(def.price);
+      info.appendChild(label);
+      info.appendChild(meta);
+      const buyBtn = document.createElement("button");
+      buyBtn.className = "mode-btn primary";
+      buyBtn.textContent = "Buy";
+      buyBtn.onclick = () => this.callbacks.onBuyPet(key);
+      row.appendChild(info);
+      row.appendChild(buyBtn);
+      shopList.appendChild(row);
+    }
+    modal.appendChild(shopList);
+
+    this.townStatusEl = document.createElement("div");
+    this.townStatusEl.className = "hint buy-status";
+    modal.appendChild(this.townStatusEl);
+
+    const buttonRow = document.createElement("div");
+    buttonRow.className = "mode-controls modal-buttons";
+    const closeBtn = document.createElement("button");
+    closeBtn.className = "mode-btn";
+    closeBtn.textContent = "Close";
+    closeBtn.onclick = () => this.closeTownModal();
+    buttonRow.appendChild(closeBtn);
+    modal.appendChild(buttonRow);
+
+    overlay.appendChild(modal);
+    this.root.appendChild(overlay);
+  }
+
+  private openTownModal(): void {
+    this.townStatusEl.textContent = "";
+    this.townOverlay.style.display = "flex";
+  }
+
+  private closeTownModal(): void {
+    this.townOverlay.style.display = "none";
+  }
+
   /** Reflects which slot the session is currently tied to — null for an unsaved household. */
   setActiveSlotName(name: string | null): void {
     this.activeSlotName = name;
@@ -680,9 +762,11 @@ export class HUD {
 
   flashBuyStatus(text: string): void {
     this.buyStatusEl.textContent = text;
+    this.townStatusEl.textContent = text;
     if (this.buyStatusTimer) clearTimeout(this.buyStatusTimer);
     this.buyStatusTimer = setTimeout(() => {
       this.buyStatusEl.textContent = "";
+      this.townStatusEl.textContent = "";
     }, 2000);
   }
 
