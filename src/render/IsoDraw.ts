@@ -1,4 +1,4 @@
-import type { Graphics } from "pixi.js";
+import type { Graphics, Texture } from "pixi.js";
 import { gridToScreen, type ScreenPoint } from "../engine/IsoMath.ts";
 
 export function shade(color: number, factor: number): number {
@@ -68,15 +68,16 @@ function drawFootprintBlock(
   leftColor: number,
   rightColor: number,
   topGlow: boolean,
+  texture?: Texture,
 ): BlockFaces {
   const f = facesFromCorners(corners, height);
   const leftPts = [f.bw, f.bs, f.ts, f.tw];
   const rightPts = [f.bs, f.be, f.te, f.ts];
   const topPts = [f.tn, f.te, f.ts, f.tw];
 
-  fillPoly(g, leftPts, leftColor);
-  fillPoly(g, rightPts, rightColor);
-  fillPoly(g, topPts, topColor);
+  fillPoly(g, leftPts, leftColor, 1, texture);
+  fillPoly(g, rightPts, rightColor, 1, texture);
+  fillPoly(g, topPts, topColor, 1, texture);
 
   // Contact-shadow band along the base of each side face.
   fillPoly(g, [f.bw, f.bs, leftFacePoint(f, 1, 0.22), leftFacePoint(f, 0, 0.22)], 0x000000, 0.16);
@@ -128,6 +129,7 @@ export function drawWallSegment(
   leftColor: number,
   rightColor: number,
   thickness = 5,
+  texture?: Texture,
 ): BlockFaces {
   const a = gridToScreen(ax, ay);
   const b = gridToScreen(bx, by);
@@ -142,7 +144,7 @@ export function drawWallSegment(
     { x: b.x + px, y: b.y + py },
     { x: a.x + px, y: a.y + py },
   ];
-  return drawFootprintBlock(g, corners, height, topColor, leftColor, rightColor, false);
+  return drawFootprintBlock(g, corners, height, topColor, leftColor, rightColor, false, texture);
 }
 
 /**
@@ -163,6 +165,7 @@ export function drawDoorway(
   leftColor: number,
   rightColor: number,
   thickness = 5,
+  texture?: Texture,
 ): void {
   const a = gridToScreen(ax, ay);
   const b = gridToScreen(bx, by);
@@ -182,15 +185,15 @@ export function drawDoorway(
   const jambFrac = 0.22;
   const jambEnd1 = { x: a.x + dx * jambFrac, y: a.y + dy * jambFrac };
   const jambEnd2 = { x: b.x - dx * jambFrac, y: b.y - dy * jambFrac };
-  drawFootprintBlock(g, segment(a, jambEnd1), height, topColor, leftColor, rightColor, false);
-  drawFootprintBlock(g, segment(jambEnd2, b), height, topColor, leftColor, rightColor, false);
+  drawFootprintBlock(g, segment(a, jambEnd1), height, topColor, leftColor, rightColor, false, texture);
+  drawFootprintBlock(g, segment(jambEnd2, b), height, topColor, leftColor, rightColor, false, texture);
 
   // Header/lintel: a shortened box lifted to just the top slice of the
   // opening, spanning its full width — nothing is drawn below it.
   const headerHeight = height * 0.22;
   const lift = height - headerHeight;
   const raise = (p: ScreenPoint) => ({ x: p.x, y: p.y - lift });
-  drawFootprintBlock(g, segment(raise(a), raise(b)), headerHeight, topColor, leftColor, rightColor, false);
+  drawFootprintBlock(g, segment(raise(a), raise(b)), headerHeight, topColor, leftColor, rightColor, false, texture);
 }
 
 /**
@@ -259,8 +262,12 @@ export function polyPoints(points: ScreenPoint[]): number[] {
   return out;
 }
 
-export function fillPoly(g: Graphics, points: ScreenPoint[], color: number, alpha = 1): void {
-  g.poly(polyPoints(points)).fill({ color, alpha });
+export function fillPoly(g: Graphics, points: ScreenPoint[], color: number, alpha = 1, texture?: Texture): void {
+  if (texture) {
+    g.poly(polyPoints(points)).fill({ color, alpha, texture, textureSpace: "global" });
+  } else {
+    g.poly(polyPoints(points)).fill({ color, alpha });
+  }
 }
 
 export function strokeLine(

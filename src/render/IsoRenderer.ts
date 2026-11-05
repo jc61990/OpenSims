@@ -4,6 +4,7 @@ import { tileCorners, drawWallSegment, drawWallPost, drawDoorway, shade } from "
 import { drawObject } from "./ObjectArt.ts";
 import { computeDayNightTint } from "./DayNight.ts";
 import { zoomCameraTo, pointerMidpoint, pointerDistance, type ScreenPoint } from "./Camera.ts";
+import { floorTexture, wallPanelTexture, fabricTexture } from "./Textures.ts";
 import type { Lot } from "../game/Lot.ts";
 import type { Sim } from "../game/Sim.ts";
 import type { Pet } from "../game/Pet.ts";
@@ -274,12 +275,12 @@ export class IsoRenderer {
         if (this.lot.getVWall(x, y)) {
           items.push({
             depth: x + y + 0.5,
-            draw: (g) => drawWallSegment(g, x, y, x, y + 1, WALL_HEIGHT, WALL_TOP, WALL_LEFT, WALL_RIGHT),
+            draw: (g) => drawWallSegment(g, x, y, x, y + 1, WALL_HEIGHT, WALL_TOP, WALL_LEFT, WALL_RIGHT, undefined, wallPanelTexture()),
           });
         } else if (this.lot.getVDoor(x, y)) {
           items.push({
             depth: x + y + 0.5,
-            draw: (g) => drawDoorway(g, x, y, x, y + 1, WALL_HEIGHT, WALL_TOP, WALL_LEFT, WALL_RIGHT),
+            draw: (g) => drawDoorway(g, x, y, x, y + 1, WALL_HEIGHT, WALL_TOP, WALL_LEFT, WALL_RIGHT, undefined, wallPanelTexture()),
           });
         }
       }
@@ -289,12 +290,12 @@ export class IsoRenderer {
         if (this.lot.getHWall(x, y)) {
           items.push({
             depth: x + y + 0.5,
-            draw: (g) => drawWallSegment(g, x, y, x + 1, y, WALL_HEIGHT, WALL_TOP, WALL_LEFT, WALL_RIGHT),
+            draw: (g) => drawWallSegment(g, x, y, x + 1, y, WALL_HEIGHT, WALL_TOP, WALL_LEFT, WALL_RIGHT, undefined, wallPanelTexture()),
           });
         } else if (this.lot.getHDoor(x, y)) {
           items.push({
             depth: x + y + 0.5,
-            draw: (g) => drawDoorway(g, x, y, x + 1, y, WALL_HEIGHT, WALL_TOP, WALL_LEFT, WALL_RIGHT),
+            draw: (g) => drawDoorway(g, x, y, x + 1, y, WALL_HEIGHT, WALL_TOP, WALL_LEFT, WALL_RIGHT, undefined, wallPanelTexture()),
           });
         }
       }
@@ -305,12 +306,12 @@ export class IsoRenderer {
         if (diagonal === "nwse") {
           items.push({
             depth: x + y + 0.5,
-            draw: (g) => drawWallSegment(g, x, y, x + 1, y + 1, WALL_HEIGHT, WALL_TOP, WALL_LEFT, WALL_RIGHT),
+            draw: (g) => drawWallSegment(g, x, y, x + 1, y + 1, WALL_HEIGHT, WALL_TOP, WALL_LEFT, WALL_RIGHT, undefined, wallPanelTexture()),
           });
         } else if (diagonal === "nesw") {
           items.push({
             depth: x + y + 0.5,
-            draw: (g) => drawWallSegment(g, x + 1, y, x, y + 1, WALL_HEIGHT, WALL_TOP, WALL_LEFT, WALL_RIGHT),
+            draw: (g) => drawWallSegment(g, x + 1, y, x, y + 1, WALL_HEIGHT, WALL_TOP, WALL_LEFT, WALL_RIGHT, undefined, wallPanelTexture()),
           });
         }
       }
@@ -381,7 +382,7 @@ export class IsoRenderer {
         const color = (x + y) % 2 === 0 ? base : shade(base, 0.92);
         this.floorGfx
           .poly([n.x, n.y, e.x, e.y, s.x, s.y, w.x, w.y])
-          .fill(color)
+          .fill({ color, texture: floorTexture(), textureSpace: "global" })
           .stroke({ width: 1, color: FLOOR_LINE, alpha: 0.35 });
       }
     }
@@ -426,9 +427,15 @@ export class IsoRenderer {
     g.roundRect(center.x - 6 + legStride, bodyBottom - 10, 5, 10, 2.5).fill(shade(sim.color, 0.55));
     g.roundRect(center.x + 1 - legStride, bodyBottom - 10, 5, 10, 2.5).fill(shade(sim.color, 0.45));
 
-    // Torso (two-tone shirt), generously rounded into a soft capsule.
-    g.roundRect(center.x - 8, bodyTop, 16, 20, 8).fill(sim.color);
-    g.roundRect(center.x - 8, bodyTop + 11, 16, 9, 6).fill(shade(sim.color, 0.72));
+    // Torso (two-tone shirt), generously rounded into a soft capsule. A
+    // fine crosshatch texture (tinted by the Sim's own color, like the
+    // floor/wall textures) gives the shirt a woven-fabric feel up close.
+    g.roundRect(center.x - 8, bodyTop, 16, 20, 8).fill({ color: sim.color, texture: fabricTexture(), textureSpace: "global" });
+    g.roundRect(center.x - 8, bodyTop + 11, 16, 9, 6).fill({
+      color: shade(sim.color, 0.72),
+      texture: fabricTexture(),
+      textureSpace: "global",
+    });
 
     // Arms
     const armSwing = walking ? Math.sin(now / 90 + sim.id + Math.PI) * 3 : 0;
