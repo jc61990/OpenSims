@@ -418,9 +418,13 @@ export class IsoRenderer {
     const hairColor = shade(sim.color, 0.4);
     const skinTone = 0xe8c39e;
 
-    // Legs — pill-shaped, full-radius rounded rects read as soft limbs rather than blocks.
-    g.roundRect(center.x - 6, bodyBottom - 10, 5, 10, 2.5).fill(shade(sim.color, 0.55));
-    g.roundRect(center.x + 1, bodyBottom - 10, 5, 10, 2.5).fill(shade(sim.color, 0.45));
+    // Legs — a scissoring fore/aft stride while walking (each leg's rounded
+    // rect shifts horizontally, opposite the other), the same sine phase as
+    // the arm swing below so the whole gait reads as one coordinated motion
+    // instead of a torso sliding over static feet.
+    const legStride = walking ? Math.sin(now / 90 + sim.id) * 2.5 : 0;
+    g.roundRect(center.x - 6 + legStride, bodyBottom - 10, 5, 10, 2.5).fill(shade(sim.color, 0.55));
+    g.roundRect(center.x + 1 - legStride, bodyBottom - 10, 5, 10, 2.5).fill(shade(sim.color, 0.45));
 
     // Torso (two-tone shirt), generously rounded into a soft capsule.
     g.roundRect(center.x - 8, bodyTop, 16, 20, 8).fill(sim.color);
@@ -469,9 +473,14 @@ export class IsoRenderer {
     const bodyColor = pet.color;
     const darkColor = shade(pet.color, 0.6);
 
-    // Legs — four tiny stubs under the body.
-    for (const lx of [-6, -1, 3, 7]) {
-      g.roundRect(center.x + lx, baseY + 1, 2.5, 4, 1).fill(darkColor);
+    // Legs — four tiny stubs under the body. While walking, diagonal pairs
+    // (front-left+back-right, front-right+back-left) alternately lift, a
+    // simplified trot that's enough to read as stepping rather than sliding.
+    const legOffsets = [-6, -1, 3, 7];
+    for (let i = 0; i < legOffsets.length; i++) {
+      const phase = i === 0 || i === 3 ? 0 : Math.PI;
+      const lift = walking ? Math.max(0, Math.sin(now / 70 + pet.id + phase)) * 1.3 : 0;
+      g.roundRect(center.x + legOffsets[i], baseY + 1 - lift, 2.5, 4, 1).fill(darkColor);
     }
 
     // Body — a low, horizontal capsule.

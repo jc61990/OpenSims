@@ -113,6 +113,8 @@ Two purely visual touches, both reading state the simulation already tracks rath
 
 Each Sim's face also now has a mouth: `drawSim` draws a small quadratic curve whose curvature is driven by `sim.motives.mood` (already computed as the average of all seven motives) — a clear smile when things are going well, a flat line near neutral, and a frown when several needs are running low. It's a cheap read of existing data, not a new system: no new state, nothing to save, just a more expressive frame each render.
 
+Walking also has a real stride now, not just a body bob. A Sim's two legs scissor fore/aft (`legStride`, the same `Math.sin(now / 90 + sim.id)` phase already driving the arm swing, applied as an opposite horizontal offset to each leg) instead of staying planted while the torso bobs over them. Pets get an equivalent four-leg diagonal trot — front-left paired with back-right, front-right with back-left, alternating which pair lifts — the simplified gait real quadrupeds use at a walk. Both are purely cosmetic, driven by `sim.state`/`pet.state` and wall-clock time exactly like the existing bob and arm swing were, so there's nothing new to save or get out of sync with simulated movement.
+
 ### Mobile
 
 OpenSims runs on a phone in two parts: a responsive layout and real touch input, not just "doesn't crash on a small screen."
