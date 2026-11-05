@@ -511,6 +511,29 @@ body {
   border-color: #7fa3e6;
 }
 
+.context-menu {
+  position: fixed;
+  z-index: 20;
+  min-width: 150px;
+  padding: 4px;
+}
+
+.context-menu-item {
+  padding: 7px 10px;
+  font-size: 12px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.context-menu-item:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.context-menu-item.disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 /* Below this width (phones, small tablets in portrait), the sim panel and
    controls panel no longer fit side by side at their desktop widths — stack
    them full-width instead of letting them overflow/get clipped, and give

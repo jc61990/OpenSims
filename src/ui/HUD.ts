@@ -26,6 +26,13 @@ import type { Sim } from "../game/Sim.ts";
 
 export type Mode = "live" | "build" | "doors" | "diagonals" | "buy" | "addsim" | "movesim";
 
+export interface ContextMenuItem {
+  label: string;
+  /** Shown but unclickable — e.g. "Select a Sim first" when there's nothing to command. */
+  disabled?: boolean;
+  onSelect?: () => void;
+}
+
 export interface NewSimData {
   name: string;
   color: number;
@@ -130,6 +137,8 @@ export class HUD {
   private saveSlotsOverlay!: HTMLElement;
   private townOverlay!: HTMLElement;
   private townStatusEl!: HTMLElement;
+  private contextMenuEl!: HTMLElement;
+  private contextMenuCleanup: (() => void) | null = null;
   private saveSlotsListEl!: HTMLElement;
   private newSlotNameInput!: HTMLInputElement;
   private activeSlotLabelEl!: HTMLElement;
@@ -371,6 +380,7 @@ export class HUD {
     this.buildCreateSimModal();
     this.buildSaveSlotsModal();
     this.buildTownModal();
+    this.buildContextMenu();
   }
 
   private buildCreateSimModal(): void {
@@ -693,6 +703,71 @@ export class HUD {
 
   private closeTownModal(): void {
     this.townOverlay.style.display = "none";
+  }
+
+  private buildContextMenu(): void {
+    const menu = document.createElement("div");
+    menu.className = "context-menu panel";
+    menu.style.display = "none";
+    this.contextMenuEl = menu;
+    this.root.appendChild(menu);
+  }
+
+  /** Opens a small right-click menu at (x,y) — raw client/page coordinates, same as the originating MouseEvent. */
+  openContextMenu(items: ContextMenuItem[], x: number, y: number): void {
+    this.closeContextMenu();
+    this.contextMenuEl.innerHTML = "";
+    for (const item of items) {
+      const row = document.createElement("div");
+      row.className = "context-menu-item" + (item.disabled ? " disabled" : "");
+      row.textContent = item.label;
+      if (!item.disabled && item.onSelect) {
+        const onSelect = item.onSelect;
+        row.onclick = () => {
+          onSelect();
+          this.closeContextMenu();
+        };
+      }
+      this.contextMenuEl.appendChild(row);
+    }
+    this.contextMenuEl.style.left = `${x}px`;
+    this.contextMenuEl.style.top = `${y}px`;
+    this.contextMenuEl.style.display = "block";
+
+    // Clamp on-screen after layout, so a right-click near an edge doesn't open a menu partly off-screen.
+    requestAnimationFrame(() => {
+      const rect = this.contextMenuEl.getBoundingClientRect();
+      const overflowX = rect.right - window.innerWidth;
+      const overflowY = rect.bottom - window.innerHeight;
+      if (overflowX > 0) this.contextMenuEl.style.left = `${Math.max(4, x - overflowX - 4)}px`;
+      if (overflowY > 0) this.contextMenuEl.style.top = `${Math.max(4, y - overflowY - 4)}px`;
+    });
+
+    // Close on the next click/right-click anywhere else, or Escape. Deferred
+    // a tick so the right-click that opened this menu doesn't also close it.
+    const onDocPointer = (e: MouseEvent) => {
+      if (!this.contextMenuEl.contains(e.target as Node)) this.closeContextMenu();
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") this.closeContextMenu();
+    };
+    const timer = setTimeout(() => {
+      document.addEventListener("click", onDocPointer);
+      document.addEventListener("contextmenu", onDocPointer);
+      document.addEventListener("keydown", onKey);
+    }, 0);
+    this.contextMenuCleanup = () => {
+      clearTimeout(timer);
+      document.removeEventListener("click", onDocPointer);
+      document.removeEventListener("contextmenu", onDocPointer);
+      document.removeEventListener("keydown", onKey);
+    };
+  }
+
+  closeContextMenu(): void {
+    this.contextMenuEl.style.display = "none";
+    this.contextMenuCleanup?.();
+    this.contextMenuCleanup = null;
   }
 
   /** Reflects which slot the session is currently tied to — null for an unsaved household. */

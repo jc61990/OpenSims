@@ -78,7 +78,8 @@ function tryUseObject(sim: Sim, motive: MotiveType, lot: Lot): void {
   });
 }
 
-function findAdjacentWalkable(lot: Lot, cx: number, cy: number, fromX: number, fromY: number) {
+/** A free walkable tile next to (cx,cy), closest to (fromX,fromY) — used to approach a Sim/pet to interact with rather than walking onto them. */
+export function findAdjacentWalkable(lot: Lot, cx: number, cy: number, fromX: number, fromY: number) {
   let best: { x: number; y: number } | null = null;
   let bestDist = Infinity;
   for (let dx = -1; dx <= 1; dx++) {

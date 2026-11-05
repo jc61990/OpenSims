@@ -7,10 +7,11 @@ import { Personality, randomPersonality } from "./game/Personality.ts";
 import { GameObject } from "./game/GameObject.ts";
 import { OBJECT_CATALOG } from "./game/ObjectCatalog.ts";
 import { updateAI } from "./game/AI.ts";
+import { commandUseObject, commandSocialize, commandPet, commandWalkTo } from "./game/Commands.ts";
 import { updateJobs } from "./game/Jobs.ts";
 import { SimClock } from "./engine/Clock.ts";
-import { IsoRenderer } from "./render/IsoRenderer.ts";
-import { HUD, formatMoney, type Mode, type NewSimData } from "./ui/HUD.ts";
+import { IsoRenderer, type ContextMenuTarget } from "./render/IsoRenderer.ts";
+import { HUD, formatMoney, type Mode, type NewSimData, type ContextMenuItem } from "./ui/HUD.ts";
 import { SIM_COLOR_POOL, TRAIT_TYPES } from "./game/types.ts";
 import { inverseFamilyRelation, type FamilyRelation } from "./game/Relationships.ts";
 import {
@@ -288,6 +289,52 @@ async function main(): Promise<void> {
     hud.flashBuyStatus(`-${formatMoney(def.price)}`);
   }
 
+  function selectSim(id: number): void {
+    selectedSimId = id;
+    renderer.selectedSimId = id;
+    hud.renderSimTabs(sims, selectedSimId);
+  }
+
+  /** Builds the right-click menu's items for whatever was clicked — empty means "don't open a menu at all". */
+  function buildContextMenuItems(target: ContextMenuTarget): ContextMenuItem[] {
+    const selected = sims.find((s) => s.id === selectedSimId) ?? null;
+    const needsSim: ContextMenuItem[] = [{ label: "Select a Sim first", disabled: true }];
+
+    if (target.kind === "sim") {
+      const sim = sims.find((s) => s.id === target.simId);
+      if (!sim) return [];
+      if (selected && selected.id === sim.id) {
+        return [{ label: "Cancel", onSelect: () => sim.interrupt() }];
+      }
+      const items: ContextMenuItem[] = [{ label: `Select ${sim.name}`, onSelect: () => selectSim(sim.id) }];
+      if (selected) {
+        items.push({ label: `Talk to ${sim.name}`, onSelect: () => commandSocialize(selected, sim, lot) });
+      }
+      return items;
+    }
+
+    if (target.kind === "pet") {
+      const pet = pets.find((p) => p.id === target.petId);
+      if (!pet) return [];
+      if (!selected) return needsSim;
+      return [{ label: `Pet ${pet.name}`, onSelect: () => commandPet(selected, pet, lot) }];
+    }
+
+    if (target.kind === "object") {
+      const obj = lot.objects.find((o) => o.id === target.objectId);
+      if (!obj || obj.interactions.length === 0) return [];
+      if (!selected) return needsSim;
+      return obj.interactions.map((interaction) => ({
+        label: interaction.label,
+        onSelect: () => commandUseObject(selected, obj, interaction, lot),
+      }));
+    }
+
+    if (!lot.isWalkableTile(target.gx, target.gy)) return [];
+    if (!selected) return needsSim;
+    return [{ label: "Walk Here", onSelect: () => commandWalkTo(selected, lot, target.gx, target.gy) }];
+  }
+
   const hud = new HUD(appRoot, {
     onSpeedChange: (speed) => {
       clock.speed = speed;
@@ -444,9 +491,12 @@ async function main(): Promise<void> {
     },
     onSimClick: (simId) => {
       if (mode !== "live") return;
-      selectedSimId = simId;
-      renderer.selectedSimId = simId;
-      hud.renderSimTabs(sims, selectedSimId);
+      selectSim(simId);
+    },
+    onContextMenu: (target, pageX, pageY) => {
+      const items = buildContextMenuItems(target);
+      if (items.length === 0) return;
+      hud.openContextMenu(items, pageX, pageY);
     },
   });
 

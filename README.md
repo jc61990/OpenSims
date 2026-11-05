@@ -53,7 +53,7 @@ Anywhere else (or if you'd rather manage the process yourself), `npm run build` 
 ## Controls
 
 - **Drag** (or **touch-drag** on mobile) to pan the camera, **scroll** (or **pinch** on mobile) to zoom
-- **Live mode**: click a Sim to select them and watch their motives in the bottom-left panel
+- **Live mode**: click a Sim to select them and watch their motives in the bottom-left panel; **right-click** a Sim, pet, object, or floor tile for a command menu — see below
 - **Buy mode**: pick an object from the palette, then click a floor tile to place it
 - **Walls mode**: click near an edge of a tile to toggle a wall on that edge — walls live on tile boundaries, so a click is matched to whichever of the tile's 4 edges it landed closest to
 - **Doors mode**: same edge-targeting as Walls mode, but turns an existing wall into a passable doorway (and back) instead of removing it outright — a door still separates rooms for scoring purposes, unlike just clearing the wall
@@ -153,6 +153,20 @@ The **Town** button opens a shop modal (`HUD.ts`'s `buildTownModal`) listing pur
 
 Pets aren't purely decorative: when a Sim's Fun motive is the most urgent need, `AI.ts`'s `tryPetNearby` has them check for a free, idle pet before falling back to furniture — if one's nearby, the Sim walks over and starts petting it (`Sim.startPetting`), gaining Fun (scaled by the Playful trait, same as other fun interactions) and a smaller Social bump for a fixed duration, with the same busy-glow indicator shown for using an object or chatting. A pet being petted holds still (`occupiedBy` on `Pet`, mirroring the `GameObject` occupancy pattern) and can't be claimed by a second Sim until released, whether that's from the session running its course or the Sim being interrupted mid-pet.
 
+### Right-click commands
+
+Everything above happens autonomously — the AI decides what a Sim does next. Right-click gives the player a say: it opens a small menu (`HUD.ts`'s `openContextMenu`, a plain fixed-position panel built once and repositioned/repopulated per click, closed on an outside click, a right-click elsewhere, Escape, or picking an item) whose contents depend on what was right-clicked, resolved by `IsoRenderer.ts`'s `resolveContextTarget` in priority order — a Sim, then a pet, then whatever object occupies that exact tile, then the bare tile:
+
+- **A Sim who isn't the selected one**: "Select `name`" (the same selection a left-click gives) and "Talk to `name`".
+- **The currently-selected Sim**: just "Cancel" — right-clicking yourself interrupts whatever you're doing, the same self-targeting convention real Sims games use.
+- **A pet**: "Pet `name`".
+- **An object with an interaction**: one item per interaction (every current object has at most one); a purely decorative object with none opens no menu at all.
+- **An empty, walkable tile**: "Walk Here", a direct move command.
+
+Picking an item always acts on whichever Sim is currently selected, via `game/Commands.ts` — `commandUseObject`, `commandSocialize`, `commandPet`, `commandWalkTo`. These mirror `AI.ts`'s autonomous `tryUseObject`/`tryStartSocial`/`tryPetNearby` closely (same pathfinding, same occupancy checks, `findAdjacentWalkable` is shared by both), but with one deliberate difference: a command always calls `sim.interrupt()` first, so it overrides whatever the Sim was already doing, where the AI only ever acts on an already-idle Sim. `commandSocialize` interrupts the target too, once the selected Sim actually arrives next to them — calling someone over to chat means they stop what *they* were doing as well.
+
+Mechanically, right-click needed its own path through `IsoRenderer`'s pointer handling: the pan/pinch/click logic now ignores any non-primary mouse button (`e.pointerType === "mouse" && e.button !== 0`) so a right-click can't also start a camera drag or fire the ordinary tile-click a left-click would, and a separate `contextmenu` listener (`e.preventDefault()`'d, so the browser's native menu never appears) does the hit-test and calls back into `main.ts` with what was clicked and where.
+
 ### Current simplifications (good first-contribution targets)
 
 - **Diagonal walls consume a whole tile** — see Diagonal walls above; a real Sims diagonal only shaves off a triangular corner and leaves the rest of the tile walkable, but this project's walkability model is per-tile, not per-triangle, so a diagonal-walled tile is entirely off-limits rather than half-usable.
@@ -164,6 +178,7 @@ Pets aren't purely decorative: when a Sim's Fun motive is the most urgent need, 
 - **No multi-lot / neighborhood view** — one lot, no traveling between lots; "Town" is a shop modal, not a second visitable isometric lot, and pets bought there are placed directly on the home lot rather than requiring any kind of trip.
 - **Pets still have no needs of their own** — a Sim can pet one for a Fun/Social boost, but a `Pet` itself has no hunger or happiness to manage, can't be fed or trained, and can't be renamed, sold, or removed once bought; only one direct interaction (petting) exists, versus the handful real Sims pets support.
 - **Firing's streak is session-only, and nothing checks motives mid-shift** — the warning shows once a bad day has happened, but `badStreak` isn't persisted in save data (it's short-term bookkeeping, like `departurePerformance`), so reloading mid-streak forgets it; motives also keep decaying normally while a Sim is at work with nothing checking them until the next departure snapshot.
+- **Right-click commands have no touch equivalent yet** — on mobile there's no long-press gesture mapped to open the same menu, so the command system (see above) is desktop/mouse-only for now; touch users still get full autonomous AI and pan/pinch, just not direct commands.
 
 ## Contributing
 

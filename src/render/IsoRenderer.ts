@@ -20,10 +20,19 @@ interface Drawable {
   draw: (g: Graphics) => void;
 }
 
+/** What a right-click landed on, in hit-test priority order: a Sim, then a pet, then an object occupying that tile, then the bare tile. */
+export type ContextMenuTarget =
+  | { kind: "sim"; simId: number }
+  | { kind: "pet"; petId: number }
+  | { kind: "object"; objectId: number }
+  | { kind: "tile"; gx: number; gy: number };
+
 export interface RendererCallbacks {
   /** fracX/fracY are the click's position within the tile (0-1 each), for edge-targeting in Build mode. */
   onTileClick?: (gx: number, gy: number, fracX: number, fracY: number) => void;
   onSimClick?: (simId: number) => void;
+  /** pageX/pageY are the right-click's raw client coordinates, for positioning a DOM context menu directly. */
+  onContextMenu?: (target: ContextMenuTarget, pageX: number, pageY: number) => void;
 }
 
 export class IsoRenderer {
@@ -121,6 +130,9 @@ export class IsoRenderer {
     canvas.style.touchAction = "none";
 
     canvas.addEventListener("pointerdown", (e) => {
+      // Right/middle mouse buttons are reserved for the context menu below —
+      // only the primary button (or any touch/pen contact) drives pan/click.
+      if (e.pointerType === "mouse" && e.button !== 0) return;
       try {
         canvas.setPointerCapture(e.pointerId);
       } catch {
@@ -201,6 +213,36 @@ export class IsoRenderer {
       },
       { passive: false },
     );
+
+    canvas.addEventListener("contextmenu", (e) => {
+      e.preventDefault();
+      const rect = canvas.getBoundingClientRect();
+      const px = e.clientX - rect.left;
+      const py = e.clientY - rect.top;
+      const worldX = (px - this.world.x) / this.world.scale.x;
+      const worldY = (py - this.world.y) / this.world.scale.y;
+      const target = this.resolveContextTarget(worldX, worldY);
+      if (target) this.callbacks.onContextMenu?.(target, e.clientX, e.clientY);
+    });
+  }
+
+  /** Sim, then pet, then an object occupying that exact tile, then the bare tile — in that priority order. */
+  private resolveContextTarget(worldX: number, worldY: number): ContextMenuTarget | null {
+    for (const sim of this.getSims()) {
+      if (sim.state === "atWork") continue;
+      const p = gridToScreen(sim.x + 0.5, sim.y + 0.5);
+      if (Math.hypot(p.x - worldX, p.y - worldY) < 18) return { kind: "sim", simId: sim.id };
+    }
+    for (const pet of this.getPets()) {
+      const p = gridToScreen(pet.x + 0.5, pet.y + 0.5);
+      if (Math.hypot(p.x - worldX, p.y - worldY) < 14) return { kind: "pet", petId: pet.id };
+    }
+    const gp = screenToGrid(worldX, worldY);
+    const gx = Math.floor(gp.x);
+    const gy = Math.floor(gp.y);
+    const obj = this.lot.objects.find((o) => o.gridX === gx && o.gridY === gy);
+    if (obj) return { kind: "object", objectId: obj.id };
+    return { kind: "tile", gx, gy };
   }
 
   private beginPinch(): void {
