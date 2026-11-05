@@ -52,7 +52,7 @@ Anywhere else (or if you'd rather manage the process yourself), `npm run build` 
 
 ## Controls
 
-- **Drag** to pan the camera, **scroll** to zoom
+- **Drag** (or **touch-drag** on mobile) to pan the camera, **scroll** (or **pinch** on mobile) to zoom
 - **Live mode**: click a Sim to select them and watch their motives in the bottom-left panel
 - **Buy mode**: pick an object from the palette, then click a floor tile to place it
 - **Walls mode**: click near an edge of a tile to toggle a wall on that edge — walls live on tile boundaries, so a click is matched to whichever of the tile's 4 edges it landed closest to
@@ -112,6 +112,14 @@ Diagonal walls are a deliberate simplification rather than a true sub-tile cut. 
 Two purely visual touches, both reading state the simulation already tracks rather than adding any of their own. `render/DayNight.ts`'s `computeDayNightTint(minuteOfDay)` is a small, dependency-free, keyframed color interpolator — deep blue at night, warm orange at dawn/dusk, no tint at all through the main daylight hours — and `IsoRenderer` draws its result as a translucent rect on a stage-level layer (a sibling of the panned/zoomed world container, so the wash always covers exactly the viewport regardless of camera position) every frame, keyed off the live sim clock. Being pure and PixiJS-free, `computeDayNightTint` is unit-tested directly with no browser needed.
 
 Each Sim's face also now has a mouth: `drawSim` draws a small quadratic curve whose curvature is driven by `sim.motives.mood` (already computed as the average of all seven motives) — a clear smile when things are going well, a flat line near neutral, and a frown when several needs are running low. It's a cheap read of existing data, not a new system: no new state, nothing to save, just a more expressive frame each render.
+
+### Mobile
+
+OpenSims runs on a phone in two parts: a responsive layout and real touch input, not just "doesn't crash on a small screen."
+
+Below an 820px-wide viewport (`style.css`), the sim panel and controls panel — side by side at their desktop widths on a laptop — switch to stacking full-width instead, each keeping its own internal scroll (so a long relationships/memories/career list never pushes the rest of the panel off-screen) inside an outer `.hud` that scrolls as a last resort. Buttons get a bit more padding for tapping accuracy, and the touch-first browser chrome gets turned off at the page level (`touch-action: manipulation`, `overscroll-behavior: none`) so double-tap-zoom and pull-to-refresh don't fight the game.
+
+Panning already worked on touch for free — the canvas uses Pointer Events throughout, which unify mouse/touch/pen — but zooming didn't, since it only ever listened for a scroll wheel. `IsoRenderer` now tracks every active pointer in a map: a second touch point turns what would've been a pan into a pinch, zooming toward the midpoint between the two fingers via `render/Camera.ts`'s `zoomCameraTo` — the same anchor-preserving zoom math the wheel handler uses, extracted once so both input paths share it (and so it's unit-testable without a browser: given a camera state, an anchor point, and a target scale, it returns the new camera state that keeps the anchor's world-space point fixed on screen). One finger lifting out of a pinch resumes a plain pan from wherever that finger still is, rather than ending the gesture outright.
 
 ### Room quality
 

@@ -17,6 +17,12 @@ body {
     Roboto,
     sans-serif;
   color: #eee;
+  /* The canvas owns pinch/pan itself (see IsoRenderer's touch-action:none);
+     this just stops the rest of the page — HUD panels, buttons — from also
+     responding to the browser's own double-tap/pinch zoom or pull-to-refresh,
+     while still allowing normal scrolling inside things like the Saves list. */
+  touch-action: manipulation;
+  overscroll-behavior: none;
 }
 
 #app {
@@ -191,6 +197,7 @@ body {
 .speed-controls {
   display: flex;
   gap: 4px;
+  flex-wrap: wrap;
 }
 
 .speed-btn {
@@ -218,6 +225,7 @@ body {
 .mode-controls {
   display: flex;
   gap: 4px;
+  flex-wrap: wrap;
 }
 
 .mode-btn {
@@ -435,7 +443,7 @@ body {
 }
 
 .modal-panel {
-  width: 300px;
+  width: min(300px, 92vw);
   max-height: 85vh;
   overflow-y: auto;
 }
@@ -501,4 +509,63 @@ body {
 .mode-btn.primary {
   background: #4a7bd6;
   border-color: #7fa3e6;
+}
+
+/* Below this width (phones, small tablets in portrait), the sim panel and
+   controls panel no longer fit side by side at their desktop widths — stack
+   them full-width instead of letting them overflow/get clipped, and give
+   buttons a bit more room to tap accurately. */
+@media (max-width: 820px) {
+  .top-bar {
+    left: 8px;
+    right: 8px;
+    top: 8px;
+  }
+
+  .top-bar .hint {
+    display: none;
+  }
+
+  .hud {
+    left: 8px;
+    right: 8px;
+    bottom: 8px;
+    padding: 0;
+    flex-direction: column;
+    align-items: stretch;
+    max-height: 75vh;
+    overflow-y: auto;
+  }
+
+  .sim-panel,
+  .controls-panel,
+  .palette-panel {
+    width: 100%;
+    max-width: none;
+  }
+
+  .sim-panel {
+    max-height: 34vh;
+  }
+
+  .mode-btn,
+  .speed-btn {
+    padding: 9px 13px;
+    font-size: 12px;
+  }
+
+  .speed-btn {
+    width: auto;
+    min-width: 38px;
+    height: 34px;
+  }
+
+  .sim-tab {
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+
+  .modal-panel {
+    width: min(340px, 94vw);
+  }
 }

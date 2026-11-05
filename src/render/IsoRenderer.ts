@@ -3,6 +3,7 @@ import { gridToScreen, screenToGrid } from "../engine/IsoMath.ts";
 import { tileCorners, drawWallSegment, drawWallPost, drawDoorway, shade } from "./IsoDraw.ts";
 import { drawObject } from "./ObjectArt.ts";
 import { computeDayNightTint } from "./DayNight.ts";
+import { zoomCameraTo, pointerMidpoint, pointerDistance, type ScreenPoint } from "./Camera.ts";
 import type { Lot } from "../game/Lot.ts";
 import type { Sim } from "../game/Sim.ts";
 import type { Pet } from "../game/Pet.ts";
@@ -45,6 +46,13 @@ export class IsoRenderer {
   private dragging = false;
   private dragMoved = false;
   private lastPointer = { x: 0, y: 0 };
+  // Keyed by PointerEvent.pointerId, so a single-finger drag and a two-finger
+  // pinch can be told apart — a mouse only ever contributes one entry, so
+  // desktop behavior is unaffected; this only activates the pinch path once
+  // a second touch point joins.
+  private activePointers = new Map<number, ScreenPoint>();
+  private pinchStartDistance = 0;
+  private pinchStartScale = 1;
 
   async init(
     holder: HTMLElement,
@@ -106,16 +114,42 @@ export class IsoRenderer {
   private setupPointerHandlers(): void {
     const canvas = this.app.canvas as HTMLCanvasElement;
     canvas.style.cursor = "grab";
+    // Hand the browser's own touch gestures (page scroll, pinch-zoom,
+    // double-tap-zoom) off entirely — our own pointer handlers below own
+    // pan and pinch-zoom instead, so nothing fights them on mobile.
+    canvas.style.touchAction = "none";
 
     canvas.addEventListener("pointerdown", (e) => {
-      this.dragging = true;
-      this.dragMoved = false;
-      this.lastPointer = { x: e.clientX, y: e.clientY };
-      canvas.setPointerCapture(e.pointerId);
-      canvas.style.cursor = "grabbing";
+      try {
+        canvas.setPointerCapture(e.pointerId);
+      } catch {
+        // Can fail in rare edge cases (pointer already released, certain
+        // browser quirks) — harmless to skip; gesture tracking below doesn't
+        // depend on capture succeeding.
+      }
+      this.activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+      if (this.activePointers.size === 1) {
+        this.dragging = true;
+        this.dragMoved = false;
+        this.lastPointer = { x: e.clientX, y: e.clientY };
+        canvas.style.cursor = "grabbing";
+      } else if (this.activePointers.size === 2) {
+        // A second touch point turns this into a pinch, not a pan or a tap.
+        this.dragging = false;
+        this.dragMoved = true;
+        this.beginPinch();
+      }
     });
 
     canvas.addEventListener("pointermove", (e) => {
+      if (!this.activePointers.has(e.pointerId)) return;
+      this.activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+      if (this.activePointers.size >= 2) {
+        this.stepPinch();
+        return;
+      }
       if (!this.dragging) return;
       const dx = e.clientX - this.lastPointer.x;
       const dy = e.clientY - this.lastPointer.y;
@@ -125,34 +159,73 @@ export class IsoRenderer {
       this.lastPointer = { x: e.clientX, y: e.clientY };
     });
 
-    const endDrag = (e: PointerEvent) => {
-      if (!this.dragging) return;
-      this.dragging = false;
-      canvas.style.cursor = "grab";
-      if (!this.dragMoved) this.handleClick(e);
+    const endPointer = (e: PointerEvent) => {
+      if (!this.activePointers.has(e.pointerId)) return;
+      this.activePointers.delete(e.pointerId);
+
+      if (this.activePointers.size === 0) {
+        const wasDragging = this.dragging;
+        this.dragging = false;
+        this.pinchStartDistance = 0;
+        canvas.style.cursor = "grab";
+        if (wasDragging && !this.dragMoved) this.handleClick(e);
+      } else if (this.activePointers.size === 1) {
+        // One finger lifted out of a pinch — resume a plain pan from here
+        // rather than ending the whole gesture.
+        this.pinchStartDistance = 0;
+        const [remaining] = this.activePointers.values();
+        this.dragging = true;
+        this.dragMoved = true;
+        this.lastPointer = remaining;
+      }
     };
-    canvas.addEventListener("pointerup", endDrag);
-    canvas.addEventListener("pointercancel", endDrag);
+    canvas.addEventListener("pointerup", endPointer);
+    canvas.addEventListener("pointercancel", endPointer);
 
     canvas.addEventListener(
       "wheel",
       (e) => {
         e.preventDefault();
         const rect = canvas.getBoundingClientRect();
-        const px = e.clientX - rect.left;
-        const py = e.clientY - rect.top;
-        const worldXBefore = (px - this.world.x) / this.world.scale.x;
-        const worldYBefore = (py - this.world.y) / this.world.scale.y;
-
         const factor = e.deltaY > 0 ? 0.9 : 1.1;
-        const newScale = Math.min(2.2, Math.max(0.5, this.world.scale.x * factor));
-        this.world.scale.set(newScale);
-
-        this.world.x = px - worldXBefore * newScale;
-        this.world.y = py - worldYBefore * newScale;
+        const next = zoomCameraTo(
+          { x: this.world.x, y: this.world.y, scale: this.world.scale.x },
+          e.clientX - rect.left,
+          e.clientY - rect.top,
+          this.world.scale.x * factor,
+        );
+        this.world.scale.set(next.scale);
+        this.world.x = next.x;
+        this.world.y = next.y;
       },
       { passive: false },
     );
+  }
+
+  private beginPinch(): void {
+    const pts = [...this.activePointers.values()];
+    this.pinchStartDistance = pointerDistance(pts[0], pts[1]);
+    this.pinchStartScale = this.world.scale.x;
+  }
+
+  private stepPinch(): void {
+    if (this.pinchStartDistance <= 0) {
+      this.beginPinch();
+      return;
+    }
+    const pts = [...this.activePointers.values()];
+    const dist = pointerDistance(pts[0], pts[1]);
+    const rect = (this.app.canvas as HTMLCanvasElement).getBoundingClientRect();
+    const mid = pointerMidpoint(pts);
+    const next = zoomCameraTo(
+      { x: this.world.x, y: this.world.y, scale: this.world.scale.x },
+      mid.x - rect.left,
+      mid.y - rect.top,
+      this.pinchStartScale * (dist / this.pinchStartDistance),
+    );
+    this.world.scale.set(next.scale);
+    this.world.x = next.x;
+    this.world.y = next.y;
   }
 
   private handleClick(e: PointerEvent): void {
