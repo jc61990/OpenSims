@@ -64,7 +64,7 @@ Anywhere else (or if you'd rather manage the process yourself), `npm run build` 
 - **Town** opens a shop modal for buying pets — each purchase deducts funds and places the new pet on an open tile of the home lot right away
 - The **Career** section in the Sim panel assigns a job; the Sim automatically leaves for their shift and comes home with a paycheck
 
-The starter household is Bella and Mortimer Goth, The Sims 1's iconic premade neighbors and, as in the source material, married to each other from the start, joined by Larry Lubin — the town's mayor, an original character with sky-high Outgoing and pointedly middling Nice, already sitting at the top of the Politics career track (so he's usually off being mayor during business hours rather than standing around the lot). Sims added later draw from a pool of other classic-series first names.
+The starter household is Bella and Mortimer Goth, The Sims 1's iconic premade neighbors and, as in the source material, married to each other from the start, joined by Larry Lubin — the town's mayor, an original character with maxed-out Outgoing and rock-bottom Nice (he'll hunt down company the moment he's alone, and isn't pleasant once he's found it), already sitting at the top of the Politics career track (so he's usually off being mayor during business hours rather than standing around the lot). Sims added later draw from a pool of other classic-series first names.
 
 ## Architecture
 

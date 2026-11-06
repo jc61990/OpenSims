@@ -192,15 +192,16 @@ function createStarterLot(): Lot {
 // actual games.
 //
 // Larry Lubin, the town's mayor, rounds out the household's third slot:
-// sky-high Outgoing (he knows absolutely everyone) paired with middling
-// Nice and high Neat — a fussy, opinionated, can't-let-a-small-thing-go
-// personality profile, the "lovably exasperating" type. He starts already
-// at the top of the Politics career track, since he's the mayor, not
-// working his way up to it.
+// maxed-out Outgoing (he will track down anyone the instant he's alone —
+// see AI.ts's urgencyThreshold, which shifts the social threshold by this
+// trait) paired with rock-bottom Nice and high Neat — not just chatty but
+// genuinely hard to be around, the "exasperating, not lovably" type. He
+// starts already at the top of the Politics career track, since he's the
+// mayor, not working his way up to it.
 function createStarterSims(): Sim[] {
   const bella = new Personality({ neat: 5, outgoing: 8, active: 5, playful: 7, nice: 6 });
   const mortimer = new Personality({ neat: 8, outgoing: 3, active: 4, playful: 4, nice: 6 });
-  const larry = new Personality({ neat: 7, outgoing: 9, active: 4, playful: 6, nice: 3 });
+  const larry = new Personality({ neat: 7, outgoing: 10, active: 4, playful: 6, nice: 1 });
   const bellaGoth = new Sim(1, "Bella Goth", colorForId(1), 7, 6, bella);
   const mortimerGoth = new Sim(2, "Mortimer Goth", colorForId(2), 7, 8, mortimer);
   bellaGoth.setFamilyRelationRaw(mortimerGoth.id, "spouse");
