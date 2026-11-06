@@ -450,7 +450,15 @@ export class IsoRenderer {
     const center = gridToScreen(sim.x + 0.5, sim.y + 0.5);
     const baseY = center.y;
     const walking = sim.state === "walking";
+    const talking = sim.state === "socializing";
     const bob = walking ? Math.sin(now / 90 + sim.id) * 2 : 0;
+    const facingSign = Math.sign(sim.facing.dx) || 1;
+    // A bit faster and choppier than the walk cycle so it reads as chatter,
+    // not a stride — a nodding head, a flapping mouth, and one gesturing arm
+    // (whichever side the Sim is already facing, i.e. toward their partner).
+    const headBob = talking ? Math.sin(now / 55 + sim.id * 2) * 1.3 : 0;
+    const talkFlutter = talking ? Math.sin(now / 45 + sim.id * 3) * 1.1 : 0;
+    const talkGesture = talking ? Math.sin(now / 70 + sim.id * 1.7) * 2.5 : 0;
 
     if (sim.id === this.selectedSimId) {
       g.ellipse(center.x, baseY + 2, 14, 7).fill({ color: 0xffffff, alpha: 0.25 });
@@ -479,29 +487,35 @@ export class IsoRenderer {
       textureSpace: "global",
     });
 
-    // Arms
+    // Arms — while talking, the arm on the side the Sim is already facing
+    // (i.e. toward their conversation partner) gets a small extra gesture
+    // motion layered on top of the walk swing (which is 0 here anyway).
     const armSwing = walking ? Math.sin(now / 90 + sim.id + Math.PI) * 3 : 0;
-    g.roundRect(center.x - 11, bodyTop + 2 + armSwing, 3.5, 14, 1.75).fill(skinTone);
-    g.roundRect(center.x + 7.5, bodyTop + 2 - armSwing, 3.5, 14, 1.75).fill(skinTone);
+    const leftGesture = facingSign < 0 ? talkGesture : 0;
+    const rightGesture = facingSign > 0 ? talkGesture : 0;
+    g.roundRect(center.x - 11, bodyTop + 2 + armSwing + leftGesture, 3.5, 14, 1.75).fill(skinTone);
+    g.roundRect(center.x + 7.5, bodyTop + 2 - armSwing - rightGesture, 3.5, 14, 1.75).fill(skinTone);
 
-    // Head + rounded hair cap
-    const headY = bodyTop - 8;
+    // Head + rounded hair cap — nods gently while talking.
+    const headY = bodyTop - 8 + headBob;
     g.circle(center.x, headY, 8.5).fill(skinTone);
     g.circle(center.x, headY - 3.5, 7.5).fill(hairColor);
     g.roundRect(center.x - 7.5, headY - 6, 15, 7, 4).fill(hairColor);
 
     // Simple face
-    const faceDx = Math.sign(sim.facing.dx) * 2.5;
+    const faceDx = facingSign * 2.5;
     g.circle(center.x + faceDx - 2, headY, 1).fill(0x2a2018);
     g.circle(center.x + faceDx + 2, headY, 1).fill(0x2a2018);
 
     // Mouth — curves into a smile or frown based on overall mood, so a Sim's
     // face actually reflects how they're doing rather than staying neutral.
+    // While socializing, a small flutter rides on top of that resting shape
+    // to read as talking rather than a fixed expression.
     const moodT = Math.max(-1, Math.min(1, sim.motives.mood / 60));
     const mouthX = center.x + faceDx;
     const mouthY = headY + 3.3;
     const mouthHalfWidth = 2.1;
-    const mouthCurve = moodT * 2;
+    const mouthCurve = moodT * 2 + talkFlutter;
     g.moveTo(mouthX - mouthHalfWidth, mouthY)
       .quadraticCurveTo(mouthX, mouthY + mouthCurve, mouthX + mouthHalfWidth, mouthY)
       .stroke({ width: 1, color: 0x2a2018 });
