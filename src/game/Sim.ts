@@ -10,6 +10,13 @@ import type { Pet } from "./Pet.ts";
 export type SimState = "idle" | "walking" | "using" | "socializing" | "petting" | "atWork";
 
 const WALK_SPEED_TILES_PER_MINUTE = 6;
+// How long (in sim-minutes) a Sim with nothing urgent to do waits before
+// wandering off to a nearby spot, same idea as Pet's wander habit — idle
+// Sims used to just stand frozen for the (realistic, hours-long) stretch
+// between urgent needs, which read as dead rather than relaxed. Shorter
+// than Pet's 45 minutes since a Sim standing around is more noticeable.
+const IDLE_WANDER_INTERVAL_MINUTES = 20;
+const IDLE_WANDER_RADIUS = 4;
 const SOCIAL_GAIN_PER_MINUTE = 6;
 const SOCIAL_FUN_GAIN_PER_MINUTE = 2;
 const SOCIAL_DURATION_MINUTES = 20;
@@ -63,6 +70,9 @@ export class Sim {
   currentPet: Pet | null = null;
   private petElapsed = 0;
 
+  private idleMinutes = 0;
+  private nextWanderAt: number;
+
   constructor(id: number, name: string, color: number, x: number, y: number, personality?: Personality) {
     this.id = id;
     this.name = name;
@@ -71,6 +81,7 @@ export class Sim {
     this.y = y;
     this.motives = new Motives();
     this.personality = personality ?? new Personality();
+    this.nextWanderAt = IDLE_WANDER_INTERVAL_MINUTES * (0.5 + Math.random());
   }
 
   getRelationship(simId: number): number {
@@ -241,6 +252,8 @@ export class Sim {
         this.stepPetting(simMinutes);
         break;
       case "idle":
+        this.stepIdle(simMinutes, lot);
+        break;
       case "atWork":
         break;
     }
@@ -345,5 +358,27 @@ export class Sim {
     if (this.petElapsed >= PET_DURATION_MINUTES || this.motives.get("fun") >= 95) {
       this.stopPetting();
     }
+  }
+
+  /**
+   * With nothing urgent to do, a Sim left standing for the realistic
+   * (hours-long) stretch between needs reads as frozen rather than relaxed.
+   * Every so often, if no motive is actually in urgent territory, send them
+   * for a short stroll nearby instead — purely cosmetic, same idea as Pet's
+   * wander habit. If AI.ts has something more pressing in mind for this Sim
+   * this same tick, it runs after this and simply finds them no longer idle
+   * (having just set off walking), same as it already treats a Sim another
+   * caller sent walking for any other reason.
+   */
+  private stepIdle(simMinutes: number, lot: Lot): void {
+    this.idleMinutes += simMinutes;
+    if (this.idleMinutes < this.nextWanderAt) return;
+    this.idleMinutes = 0;
+    this.nextWanderAt = IDLE_WANDER_INTERVAL_MINUTES * (0.5 + Math.random());
+    if (this.motives.mostUrgent() !== null) return; // let AI.ts handle it instead
+
+    const tx = Math.max(0, Math.min(lot.width - 1, this.gridX + Math.round((Math.random() * 2 - 1) * IDLE_WANDER_RADIUS)));
+    const ty = Math.max(0, Math.min(lot.height - 1, this.gridY + Math.round((Math.random() * 2 - 1) * IDLE_WANDER_RADIUS)));
+    this.walkTo(lot, tx, ty);
   }
 }
