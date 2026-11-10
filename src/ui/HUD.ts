@@ -39,13 +39,6 @@ export interface NewSimData {
   personality: Partial<Record<TraitType, number>>;
 }
 
-/** Enough about a house to list it in the Neighborhood modal — not the live Lot/Sim data itself, which stays owned by main.ts. */
-export interface HouseInfo {
-  id: string;
-  name: string;
-  residentNames: string[];
-}
-
 export interface HUDCallbacks {
   onSpeedChange: (speed: SimSpeed) => void;
   onModeChange: (mode: Mode) => void;
@@ -74,6 +67,9 @@ export interface HUDCallbacks {
   onBuyPet: (type: PetType) => void;
   /** Switches the active house — "home" returns to the player's own household, any other id visits that neighbor's. */
   onEnterHouse: (houseId: string) => void;
+  /** Opens/closes the scrollable neighborhood overview map (see NeighborhoodRenderer). */
+  onOpenNeighborhoodMap: () => void;
+  onCloseNeighborhoodMap: () => void;
 }
 
 function motiveColor(value: number): string {
@@ -146,10 +142,6 @@ export class HUD {
   private saveSlotsOverlay!: HTMLElement;
   private townOverlay!: HTMLElement;
   private townStatusEl!: HTMLElement;
-  private neighborhoodOverlay!: HTMLElement;
-  private neighborhoodListEl!: HTMLElement;
-  private houses: HouseInfo[] = [];
-  private activeHouseId = "home";
   private visitingBannerEl!: HTMLElement;
   private leaveHouseBtn!: HTMLButtonElement;
   // Hidden while visiting a neighbor's house — editing, building, or saving
@@ -159,6 +151,13 @@ export class HUD {
   private saveRowEl!: HTMLElement;
   private simHeaderActionsEl!: HTMLElement;
   private careerSectionEl!: HTMLElement;
+  // The whole gameplay HUD (sim panel + controls + palette) — hidden
+  // entirely while the neighborhood overview map is open, since none of it
+  // applies to a screen with no lot or Sims on it.
+  private hudRowEl!: HTMLElement;
+  private neighborhoodBtn!: HTMLButtonElement;
+  private closeMapBtn!: HTMLButtonElement;
+  private mapBannerEl!: HTMLElement;
   private contextMenuEl!: HTMLElement;
   private contextMenuCleanup: (() => void) | null = null;
   private saveSlotsListEl!: HTMLElement;
@@ -194,11 +193,22 @@ export class HUD {
     this.leaveHouseBtn.style.display = "none";
     this.leaveHouseBtn.onclick = () => this.callbacks.onEnterHouse("home");
     topBarActions.appendChild(this.leaveHouseBtn);
-    const neighborhoodBtn = document.createElement("button");
-    neighborhoodBtn.className = "mode-btn";
-    neighborhoodBtn.textContent = "Neighborhood";
-    neighborhoodBtn.onclick = () => this.openNeighborhoodModal();
-    topBarActions.appendChild(neighborhoodBtn);
+    this.mapBannerEl = document.createElement("div");
+    this.mapBannerEl.className = "visiting-banner";
+    this.mapBannerEl.textContent = "Neighborhood — click a house to visit";
+    this.mapBannerEl.style.display = "none";
+    topBarActions.appendChild(this.mapBannerEl);
+    this.closeMapBtn = document.createElement("button");
+    this.closeMapBtn.className = "mode-btn";
+    this.closeMapBtn.textContent = "Close";
+    this.closeMapBtn.style.display = "none";
+    this.closeMapBtn.onclick = () => this.callbacks.onCloseNeighborhoodMap();
+    topBarActions.appendChild(this.closeMapBtn);
+    this.neighborhoodBtn = document.createElement("button");
+    this.neighborhoodBtn.className = "mode-btn";
+    this.neighborhoodBtn.textContent = "Neighborhood";
+    this.neighborhoodBtn.onclick = () => this.callbacks.onOpenNeighborhoodMap();
+    topBarActions.appendChild(this.neighborhoodBtn);
     topBar.appendChild(topBarActions);
 
     this.root.appendChild(topBar);
@@ -428,11 +438,11 @@ export class HUD {
     hud.appendChild(controlsPanel);
     hud.appendChild(palettePanel);
     this.root.appendChild(hud);
+    this.hudRowEl = hud;
 
     this.buildCreateSimModal();
     this.buildSaveSlotsModal();
     this.buildTownModal();
-    this.buildNeighborhoodModal();
     this.buildContextMenu();
   }
 
@@ -758,90 +768,13 @@ export class HUD {
     this.townOverlay.style.display = "none";
   }
 
-  private buildNeighborhoodModal(): void {
-    const overlay = document.createElement("div");
-    overlay.className = "modal-overlay";
-    overlay.style.display = "none";
-    this.neighborhoodOverlay = overlay;
-
-    const modal = document.createElement("div");
-    modal.className = "panel modal-panel";
-
-    const title = document.createElement("h3");
-    title.textContent = "Neighborhood";
-    modal.appendChild(title);
-
-    const hint = document.createElement("div");
-    hint.className = "hint";
-    hint.textContent = "Visiting a house swaps in its own Sims and lot — yours keeps going exactly where you left it.";
-    modal.appendChild(hint);
-
-    this.neighborhoodListEl = document.createElement("div");
-    this.neighborhoodListEl.className = "save-slots-list";
-    modal.appendChild(this.neighborhoodListEl);
-
-    const buttonRow = document.createElement("div");
-    buttonRow.className = "mode-controls modal-buttons";
-    const closeBtn = document.createElement("button");
-    closeBtn.className = "mode-btn";
-    closeBtn.textContent = "Close";
-    closeBtn.onclick = () => this.closeNeighborhoodModal();
-    buttonRow.appendChild(closeBtn);
-    modal.appendChild(buttonRow);
-
-    overlay.appendChild(modal);
-    this.root.appendChild(overlay);
-  }
-
-  private refreshNeighborhoodList(): void {
-    this.neighborhoodListEl.innerHTML = "";
-    for (const house of this.houses) {
-      const isActive = house.id === this.activeHouseId;
-      const row = document.createElement("div");
-      row.className = "save-slot-row" + (isActive ? " active" : "");
-      const info = document.createElement("div");
-      info.className = "save-slot-info";
-      const label = document.createElement("div");
-      label.className = "save-slot-name";
-      label.textContent = house.name;
-      const meta = document.createElement("div");
-      meta.className = "save-slot-meta";
-      meta.textContent = house.residentNames.length > 0 ? house.residentNames.join(", ") : "Vacant lot";
-      info.appendChild(label);
-      info.appendChild(meta);
-      const enterBtn = document.createElement("button");
-      enterBtn.className = "mode-btn" + (isActive ? "" : " primary");
-      if (isActive) {
-        enterBtn.textContent = "You're here";
-        enterBtn.disabled = true;
-      } else {
-        enterBtn.textContent = house.id === "home" ? "Go Home" : "Visit";
-        enterBtn.onclick = () => {
-          this.callbacks.onEnterHouse(house.id);
-          this.closeNeighborhoodModal();
-        };
-      }
-      row.appendChild(info);
-      row.appendChild(enterBtn);
-      this.neighborhoodListEl.appendChild(row);
-    }
-  }
-
-  /** The list of houses to show in the Neighborhood modal — called once after the neighborhood is built. */
-  setHouses(houses: HouseInfo[]): void {
-    this.houses = houses;
-    this.refreshNeighborhoodList();
-  }
-
   /**
    * Updates all the "visiting someone else's house" UI: the top-bar banner
-   * and Back Home button, which house is highlighted in the Neighborhood
-   * modal, and hides Build/Buy/Doors/Diagonals/+Sim/Save/Saves/Town/Edit/
-   * Move/Remove — none of them make sense on a house that isn't the
-   * player's own.
+   * and Back Home button, and hides Build/Buy/Doors/Diagonals/+Sim/Save/
+   * Saves/Town/Edit/Move/Remove — none of them make sense on a house that
+   * isn't the player's own.
    */
   setActiveHouse(houseId: string, houseName: string): void {
-    this.activeHouseId = houseId;
     const visiting = houseId !== "home";
     this.visitingBannerEl.style.display = visiting ? "" : "none";
     this.visitingBannerEl.textContent = visiting ? `Visiting: ${houseName}` : "";
@@ -850,16 +783,19 @@ export class HUD {
     this.saveRowEl.style.display = visiting ? "none" : "";
     this.simHeaderActionsEl.style.display = visiting ? "none" : "";
     this.careerSectionEl.style.display = visiting ? "none" : "";
-    this.refreshNeighborhoodList();
   }
 
-  private openNeighborhoodModal(): void {
-    this.refreshNeighborhoodList();
-    this.neighborhoodOverlay.style.display = "flex";
-  }
-
-  private closeNeighborhoodModal(): void {
-    this.neighborhoodOverlay.style.display = "none";
+  /**
+   * Shows/hides the scrollable neighborhood overview (main.ts swaps the
+   * canvas itself; this just hides the gameplay HUD — sim panel, controls,
+   * palette — since none of it applies to a screen with no lot on it — and
+   * swaps the Neighborhood button for a Close one).
+   */
+  setMapOpen(open: boolean): void {
+    this.hudRowEl.style.display = open ? "none" : "";
+    this.neighborhoodBtn.style.display = open ? "none" : "";
+    this.closeMapBtn.style.display = open ? "" : "none";
+    this.mapBannerEl.style.display = open ? "" : "none";
   }
 
   private buildContextMenu(): void {

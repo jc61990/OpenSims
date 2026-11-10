@@ -31,7 +31,8 @@ body {
   height: 100%;
 }
 
-#game-canvas-holder {
+#game-canvas-holder,
+#neighborhood-canvas-holder {
   position: absolute;
   inset: 0;
 }

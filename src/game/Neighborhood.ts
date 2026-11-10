@@ -153,3 +153,70 @@ export function buildNeighborhood(): NeighborHouse[] {
     { id: "whitfield", name: "Whitfield Household", lot: whitfieldLot, sims: [owenWhitfield], pets: [] },
   ];
 }
+
+export const HOME_HOUSE_ID = "home";
+export const HOME_HOUSE_NAME = "Your Household";
+
+/** The neighborhood overview map's grid — much bigger than any one house's own lot, since it has to fit all of them plus roads between. */
+export const MAP_WIDTH = 22;
+export const MAP_HEIGHT = 18;
+/** Full-width/height streets the map is divided by — a simple grid, not a realistic road network. */
+export const MAP_ROAD_COLUMNS = [6, 13];
+export const MAP_ROAD_ROWS = [9];
+
+export interface NeighborhoodMapHouse {
+  readonly id: string;
+  readonly name: string;
+  /** Top-left grid corner of the house's square footprint on the overview map. */
+  readonly gx: number;
+  readonly gy: number;
+  readonly footprint: number;
+  readonly roofColor: number;
+}
+
+const MAP_POSITIONS: Record<string, { gx: number; gy: number }> = {
+  [HOME_HOUSE_ID]: { gx: 1, gy: 2 },
+  hart: { gx: 8, gy: 2 },
+  okafor: { gx: 15, gy: 2 },
+  castillo: { gx: 1, gy: 11 },
+  whitfield: { gx: 8, gy: 11 },
+};
+
+const MAP_ROOF_COLORS: Record<string, number> = {
+  [HOME_HOUSE_ID]: 0xd6624a,
+  hart: 0x4a7bd6,
+  okafor: 0x4ad67f,
+  castillo: 0x9a6ac2,
+  whitfield: 0x707070,
+};
+
+/**
+ * The overview map only needs a name/position/color per house, not the live
+ * Lot/Sim/Pet data `buildNeighborhood` builds — so this takes that function's
+ * result (for the neighbors' names) plus the home household's own name
+ * (which, unlike a neighbor's, the player can change via Saves) and produces
+ * a small, render-only layout list. A house with no explicit position falls
+ * back to (1,1) rather than crashing, in case the map ever outgrows MAP_POSITIONS.
+ */
+export function buildNeighborhoodMapLayout(neighbors: NeighborHouse[], homeName: string): NeighborhoodMapHouse[] {
+  const footprint = 3;
+  const layout: NeighborhoodMapHouse[] = [
+    {
+      id: HOME_HOUSE_ID,
+      name: homeName,
+      ...(MAP_POSITIONS[HOME_HOUSE_ID] ?? { gx: 1, gy: 1 }),
+      footprint,
+      roofColor: MAP_ROOF_COLORS[HOME_HOUSE_ID],
+    },
+  ];
+  for (const house of neighbors) {
+    layout.push({
+      id: house.id,
+      name: house.name,
+      ...(MAP_POSITIONS[house.id] ?? { gx: 1, gy: 1 }),
+      footprint,
+      roofColor: MAP_ROOF_COLORS[house.id] ?? 0x888888,
+    });
+  }
+  return layout;
+}

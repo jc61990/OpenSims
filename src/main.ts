@@ -9,10 +9,11 @@ import { OBJECT_CATALOG } from "./game/ObjectCatalog.ts";
 import { updateAI } from "./game/AI.ts";
 import { commandUseObject, commandSocialize, commandPet, commandWalkTo } from "./game/Commands.ts";
 import { updateJobs } from "./game/Jobs.ts";
-import { buildNeighborhood } from "./game/Neighborhood.ts";
+import { buildNeighborhood, buildNeighborhoodMapLayout, HOME_HOUSE_ID, HOME_HOUSE_NAME } from "./game/Neighborhood.ts";
 import { SimClock } from "./engine/Clock.ts";
 import { IsoRenderer, type ContextMenuTarget } from "./render/IsoRenderer.ts";
-import { HUD, formatMoney, type Mode, type NewSimData, type ContextMenuItem, type HouseInfo } from "./ui/HUD.ts";
+import { NeighborhoodRenderer } from "./render/NeighborhoodRenderer.ts";
+import { HUD, formatMoney, type Mode, type NewSimData, type ContextMenuItem } from "./ui/HUD.ts";
 import { SIM_COLOR_POOL, TRAIT_TYPES } from "./game/types.ts";
 import { inverseFamilyRelation, type FamilyRelation } from "./game/Relationships.ts";
 import {
@@ -218,6 +219,10 @@ async function main(): Promise<void> {
   const canvasHolder = document.createElement("div");
   canvasHolder.id = "game-canvas-holder";
   appRoot.appendChild(canvasHolder);
+  const neighborhoodHolder = document.createElement("div");
+  neighborhoodHolder.id = "neighborhood-canvas-holder";
+  neighborhoodHolder.style.display = "none";
+  appRoot.appendChild(neighborhoodHolder);
 
   let activeSlotName = getLastActiveSlot();
   const saveData = activeSlotName ? loadFromSlot(activeSlotName) : null;
@@ -234,15 +239,16 @@ async function main(): Promise<void> {
   let pets: Pet[] = saveData ? deserializePets(saveData) : [];
   let nextPetId = saveData ? (saveData.nextPetId ?? 1) : 1;
 
-  const HOME_HOUSE_NAME = "Your Household";
-  let activeHouseId = "home";
+  let activeHouseId = HOME_HOUSE_ID;
   const houseCache = new Map<string, { lot: Lot; sims: Sim[]; pets: Pet[] }>();
-  const houseNames = new Map<string, string>([["home", HOME_HOUSE_NAME]]);
-  houseCache.set("home", { lot, sims, pets });
-  for (const house of buildNeighborhood()) {
+  const houseNames = new Map<string, string>([[HOME_HOUSE_ID, HOME_HOUSE_NAME]]);
+  houseCache.set(HOME_HOUSE_ID, { lot, sims, pets });
+  const neighborHouses = buildNeighborhood();
+  for (const house of neighborHouses) {
     houseCache.set(house.id, { lot: house.lot, sims: house.sims, pets: house.pets });
     houseNames.set(house.id, house.name);
   }
+  const neighborhoodMapLayout = buildNeighborhoodMapLayout(neighborHouses, HOME_HOUSE_NAME);
 
   let selectedSimId: number | null = sims[0]?.id ?? null;
   let mode: Mode = "live";
@@ -252,6 +258,7 @@ async function main(): Promise<void> {
 
   const clock = new SimClock();
   const renderer = new IsoRenderer();
+  const neighborhoodRenderer = new NeighborhoodRenderer();
 
   function setMode(m: Mode): void {
     mode = m;
@@ -312,12 +319,23 @@ async function main(): Promise<void> {
     hud.renderSimTabs(sims, selectedSimId);
   }
 
-  function houseInfoList(): HouseInfo[] {
-    return [...houseCache.entries()].map(([id, state]) => ({
-      id,
-      name: houseNames.get(id) ?? id,
-      residentNames: state.sims.map((s) => s.name),
-    }));
+  let neighborhoodMapOpen = false;
+
+  function openNeighborhoodMap(): void {
+    if (neighborhoodMapOpen) return;
+    neighborhoodMapOpen = true;
+    canvasHolder.style.display = "none";
+    neighborhoodHolder.style.display = "";
+    neighborhoodRenderer.resize();
+    hud.setMapOpen(true);
+  }
+
+  function closeNeighborhoodMap(): void {
+    if (!neighborhoodMapOpen) return;
+    neighborhoodMapOpen = false;
+    neighborhoodHolder.style.display = "none";
+    canvasHolder.style.display = "";
+    hud.setMapOpen(false);
   }
 
   /**
@@ -478,9 +496,10 @@ async function main(): Promise<void> {
     },
     onBuyPet: (type) => buyPet(type),
     onEnterHouse: (houseId) => enterHouse(houseId),
+    onOpenNeighborhoodMap: () => openNeighborhoodMap(),
+    onCloseNeighborhoodMap: () => closeNeighborhoodMap(),
   });
 
-  hud.setHouses(houseInfoList());
   hud.setActiveHouse(activeHouseId, houseNames.get(activeHouseId) ?? activeHouseId);
 
   hud.setMode(mode);
@@ -555,6 +574,13 @@ async function main(): Promise<void> {
 
   renderer.selectedSimId = selectedSimId;
 
+  await neighborhoodRenderer.init(neighborhoodHolder, neighborhoodMapLayout, {
+    onEnterHouse: (houseId) => {
+      closeNeighborhoodMap();
+      enterHouse(houseId);
+    },
+  });
+
   renderer.app.ticker.add(() => {
     const dtSeconds = renderer.app.ticker.deltaMS / 1000;
     const simMinutes = clock.tick(dtSeconds);
@@ -565,7 +591,7 @@ async function main(): Promise<void> {
       // Careers (and the money/promotion/firing that come with them) are a
       // player-household concept only — neighbor Sims are scenery, not a
       // second economy, so this only runs while actually home.
-      if (activeHouseId === "home") {
+      if (activeHouseId === HOME_HOUSE_ID) {
         updateJobs(
           sims,
           clock,
