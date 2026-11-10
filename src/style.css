@@ -412,7 +412,9 @@ body {
   left: 14px;
   right: 14px;
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
+  gap: 8px;
   pointer-events: none;
 }
 
@@ -430,6 +432,18 @@ body {
   font-size: 11px;
   opacity: 0.7;
   margin-top: 2px;
+}
+
+.top-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.visiting-banner {
+  font-size: 12px;
+  font-weight: 600;
+  color: #ffd24a;
 }
 
 .modal-overlay {

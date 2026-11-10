@@ -121,6 +121,11 @@ export class IsoRenderer {
     this.app.ticker.add(() => this.render());
   }
 
+  /** Repoints the renderer at a different lot entirely — switching which house is on screen (see main.ts's enterHouse). Sims/pets are already read live via the getters passed to init, so only the lot itself needs a setter. */
+  setLot(lot: Lot): void {
+    this.lot = lot;
+  }
+
   private setupPointerHandlers(): void {
     const canvas = this.app.canvas as HTMLCanvasElement;
     canvas.style.cursor = "grab";

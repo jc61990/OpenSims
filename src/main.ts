@@ -9,9 +9,10 @@ import { OBJECT_CATALOG } from "./game/ObjectCatalog.ts";
 import { updateAI } from "./game/AI.ts";
 import { commandUseObject, commandSocialize, commandPet, commandWalkTo } from "./game/Commands.ts";
 import { updateJobs } from "./game/Jobs.ts";
+import { buildNeighborhood } from "./game/Neighborhood.ts";
 import { SimClock } from "./engine/Clock.ts";
 import { IsoRenderer, type ContextMenuTarget } from "./render/IsoRenderer.ts";
-import { HUD, formatMoney, type Mode, type NewSimData, type ContextMenuItem } from "./ui/HUD.ts";
+import { HUD, formatMoney, type Mode, type NewSimData, type ContextMenuItem, type HouseInfo } from "./ui/HUD.ts";
 import { SIM_COLOR_POOL, TRAIT_TYPES } from "./game/types.ts";
 import { inverseFamilyRelation, type FamilyRelation } from "./game/Relationships.ts";
 import {
@@ -221,12 +222,27 @@ async function main(): Promise<void> {
   let activeSlotName = getLastActiveSlot();
   const saveData = activeSlotName ? loadFromSlot(activeSlotName) : null;
   if (activeSlotName && !saveData) activeSlotName = null; // slot vanished (e.g. deleted elsewhere)
-  const lot = saveData ? deserializeLot(saveData) : createStarterLot();
-  const sims: Sim[] = saveData ? deserializeSims(saveData) : createStarterSims();
+  // These three describe whichever house is currently on screen — normally
+  // the player's own home, but enterHouse() below repoints them at a
+  // neighbor's instead. Only home's state is ever saved/loaded; neighbor
+  // houses are built once (buildNeighborhood) and just sit there in memory,
+  // per the "simple scenery" design — see houseCache below.
+  let lot = saveData ? deserializeLot(saveData) : createStarterLot();
+  let sims: Sim[] = saveData ? deserializeSims(saveData) : createStarterSims();
   let nextSimId = saveData ? saveData.nextSimId : sims.length + 1;
   let funds = saveData ? (saveData.funds ?? STARTING_FUNDS) : STARTING_FUNDS;
-  const pets: Pet[] = saveData ? deserializePets(saveData) : [];
+  let pets: Pet[] = saveData ? deserializePets(saveData) : [];
   let nextPetId = saveData ? (saveData.nextPetId ?? 1) : 1;
+
+  const HOME_HOUSE_NAME = "Your Household";
+  let activeHouseId = "home";
+  const houseCache = new Map<string, { lot: Lot; sims: Sim[]; pets: Pet[] }>();
+  const houseNames = new Map<string, string>([["home", HOME_HOUSE_NAME]]);
+  houseCache.set("home", { lot, sims, pets });
+  for (const house of buildNeighborhood()) {
+    houseCache.set(house.id, { lot: house.lot, sims: house.sims, pets: house.pets });
+    houseNames.set(house.id, house.name);
+  }
 
   let selectedSimId: number | null = sims[0]?.id ?? null;
   let mode: Mode = "live";
@@ -294,6 +310,38 @@ async function main(): Promise<void> {
     selectedSimId = id;
     renderer.selectedSimId = id;
     hud.renderSimTabs(sims, selectedSimId);
+  }
+
+  function houseInfoList(): HouseInfo[] {
+    return [...houseCache.entries()].map(([id, state]) => ({
+      id,
+      name: houseNames.get(id) ?? id,
+      residentNames: state.sims.map((s) => s.name),
+    }));
+  }
+
+  /**
+   * Swaps which house is on screen. Neighbor houses are never simulated
+   * while nobody's looking at them (the ticker below only ever steps
+   * whichever lot/sims/pets are currently assigned) — leaving means they
+   * freeze exactly where they are, and coming back home resumes it right
+   * where it was left, same as the player's own house would.
+   */
+  function enterHouse(houseId: string): void {
+    if (houseId === activeHouseId) return;
+    const target = houseCache.get(houseId);
+    if (!target) return;
+    activeHouseId = houseId;
+    lot = target.lot;
+    sims = target.sims;
+    pets = target.pets;
+    renderer.setLot(lot);
+    selectedSimId = sims[0]?.id ?? null;
+    renderer.selectedSimId = selectedSimId;
+    setMode("live");
+    hud.setActiveHouse(houseId, houseNames.get(houseId) ?? houseId);
+    hud.renderSimTabs(sims, selectedSimId);
+    hud.renderSim(sims.find((s) => s.id === selectedSimId) ?? null, sims);
   }
 
   /** Builds the right-click menu's items for whatever was clicked — empty means "don't open a menu at all". */
@@ -429,7 +477,11 @@ async function main(): Promise<void> {
       hud.renderSim(sim, sims);
     },
     onBuyPet: (type) => buyPet(type),
+    onEnterHouse: (houseId) => enterHouse(houseId),
   });
+
+  hud.setHouses(houseInfoList());
+  hud.setActiveHouse(activeHouseId, houseNames.get(activeHouseId) ?? activeHouseId);
 
   hud.setMode(mode);
   hud.setSpeed(clock.speed);
@@ -510,16 +562,21 @@ async function main(): Promise<void> {
       for (const sim of sims) sim.update(simMinutes, lot);
       for (const pet of pets) pet.update(simMinutes, lot);
       updateAI(sims, lot, pets);
-      updateJobs(
-        sims,
-        clock,
-        (amount) => {
-          funds += amount;
-          hud.setFunds(funds);
-        },
-        (sim, newTitle) => hud.flashPromotion(sim.name, newTitle),
-        (sim, jobTitle) => hud.flashFired(sim.name, jobTitle),
-      );
+      // Careers (and the money/promotion/firing that come with them) are a
+      // player-household concept only — neighbor Sims are scenery, not a
+      // second economy, so this only runs while actually home.
+      if (activeHouseId === "home") {
+        updateJobs(
+          sims,
+          clock,
+          (amount) => {
+            funds += amount;
+            hud.setFunds(funds);
+          },
+          (sim, newTitle) => hud.flashPromotion(sim.name, newTitle),
+          (sim, jobTitle) => hud.flashFired(sim.name, jobTitle),
+        );
+      }
     }
     hud.setClock(`${clock.dayName} · ${clock.formatTime()}`);
     const selected = sims.find((s) => s.id === selectedSimId) ?? null;
